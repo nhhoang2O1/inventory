@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { authorizeWarehouseAction } from '../packages/contracts/dist/index.js';
+import { authorizeWarehouseAction } from '../shared/contracts/dist/index.js';
 
 const actor = {
   userId: 'user-1',

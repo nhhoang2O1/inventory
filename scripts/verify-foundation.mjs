@@ -7,14 +7,14 @@ const required = [
   'compose.yaml',
   'Dockerfile.node',
   '.env.example',
-  'apps/api/src/main.ts',
-  'apps/api/src/app.module.ts',
-  'apps/worker/src/main.ts',
-  'apps/web/src/App.tsx',
-  'apps/web/Dockerfile',
-  'packages/contracts/src/index.ts',
-  'packages/database/src/migrate.ts',
-  'packages/database/migrations/0001_phase2_foundation.sql',
+  'backend/api/src/main.ts',
+  'backend/api/src/app.module.ts',
+  'backend/worker/src/main.ts',
+  'frontend/web/src/App.tsx',
+  'frontend/web/Dockerfile',
+  'shared/contracts/src/index.ts',
+  'backend/database/src/migrate.ts',
+  'backend/database/migrations/0001_phase2_foundation.sql',
   'docs/openapi/warehouse-v1.yaml',
   'docs/architecture/phase-2-architecture.md',
   'docs/architecture/module-boundaries.md',
@@ -40,7 +40,7 @@ for (const marker of ['openapi: 3.1.0', '/api/v1/health:', 'X-Correlation-Id', '
   if (!openapi.includes(marker)) failures.push(`OpenAPI missing ${marker}`);
 }
 
-const migration = await readFile(join(root, 'packages/database/migrations/0001_phase2_foundation.sql'), 'utf8');
+const migration = await readFile(join(root, 'backend/database/migrations/0001_phase2_foundation.sql'), 'utf8');
 for (const marker of ['CREATE SCHEMA IF NOT EXISTS platform', 'CREATE TABLE platform.idempotency_record', 'CREATE TABLE platform.outbox_event', 'CREATE TABLE audit.audit_event']) {
   if (!migration.includes(marker)) failures.push(`Migration missing ${marker}`);
 }
@@ -57,11 +57,13 @@ async function walk(directory) {
   return files;
 }
 
-for (const file of await walk(join(root, 'apps'))) {
+for (const sourceRoot of ['backend', 'frontend', 'shared']) {
+for (const file of await walk(join(root, sourceRoot))) {
   const source = await readFile(file, 'utf8');
   if (/from ['"][^'"]*modules\/[^/'"]+\/(infrastructure|internal)/.test(source)) {
     failures.push(`${relative(root, file)} imports another module's internals`);
   }
+}
 }
 
 if (failures.length) {

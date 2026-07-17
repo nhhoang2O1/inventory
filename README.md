@@ -44,11 +44,11 @@ docker compose config
 
 ## Cấu trúc
 
-- `apps/api`: NestJS modular monolith HTTP API.
-- `apps/worker`: worker xử lý transactional outbox.
-- `apps/web`: React responsive web skeleton.
-- `packages/contracts`: contract/error types dùng chung.
-- `packages/database`: SQL migration framework và schema foundation.
+- `backend/api`: NestJS modular monolith HTTP API.
+- `backend/worker`: worker xử lý transactional outbox.
+- `frontend/web`: React responsive web skeleton.
+- `shared/contracts`: contract/error types dùng chung.
+- `backend/database`: SQL migration framework và schema foundation.
 - `docs/openapi`: REST contract v1.
 - `docs/architecture`: kiến trúc, ERD, module boundary và ADR.
 

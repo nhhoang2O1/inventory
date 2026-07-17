@@ -43,7 +43,7 @@ $process = $null
 try {
   docker compose exec -T postgres psql -U wms_app -d warehouse_wms -v ON_ERROR_STOP=1 -c $seed | Out-Null
   if($LASTEXITCODE -ne 0){throw 'Phase 4 API smoke seed failed'}
-  $process = Start-Process -FilePath 'node.exe' -ArgumentList 'apps/api/dist/main.js' -WorkingDirectory $ProjectRoot -WindowStyle Hidden -RedirectStandardOutput $logOut -RedirectStandardError $logErr -PassThru
+  $process = Start-Process -FilePath 'node.exe' -ArgumentList 'backend/api/dist/main.js' -WorkingDirectory $ProjectRoot -WindowStyle Hidden -RedirectStandardOutput $logOut -RedirectStandardError $logErr -PassThru
   for ($i=0; $i -lt 20; $i++) { try { Invoke-RestMethod 'http://localhost:3100/api/v1/health' | Out-Null; break } catch { Start-Sleep -Milliseconds 300 } }
   $headers = @{ 'x-actor-id'='40000000-0000-4000-8000-000000000011'; 'x-correlation-id'='40000000-0000-4000-8000-000000000014'; 'Idempotency-Key'='phase4-api-post-0001' }
   $posting = @{ documentType='TEST_RECEIPT'; documentId='40000000-0000-4000-8000-000000000013'; reason='api smoke'; lines=@(@{skuId='40000000-0000-4000-8000-000000000003';batchId='40000000-0000-4000-8000-000000000012';quantity=100;destination=@{warehouseId='40000000-0000-4000-8000-000000000004';locationId='40000000-0000-4000-8000-000000000006';status='AVAILABLE'}})} | ConvertTo-Json -Depth 6

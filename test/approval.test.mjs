@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { canDecideApproval } from '../packages/contracts/dist/index.js';
+import { canDecideApproval } from '../shared/contracts/dist/index.js';
 
 const base = {
   status: 'PENDING', creatorId: 'maker', actorId: 'checker', fourEyesRequired: true,

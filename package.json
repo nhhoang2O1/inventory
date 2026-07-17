@@ -8,8 +8,9 @@
     "npm": ">=10 <11"
   },
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "backend/*",
+    "frontend/*",
+    "shared/*"
   ],
   "scripts": {
     "verify": "node scripts/verify-foundation.mjs",

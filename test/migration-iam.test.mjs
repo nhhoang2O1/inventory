@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const migrationUrl = new URL('../packages/database/migrations/0002_phase3_iam.sql', import.meta.url);
+const migrationUrl = new URL('../backend/database/migrations/0002_phase3_iam.sql', import.meta.url);
 const sql = await readFile(migrationUrl, 'utf8');
 
 test('a user has exactly one effective role and roles own permissions', () => {

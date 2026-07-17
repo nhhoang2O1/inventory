@@ -97,8 +97,8 @@ try {
   Invoke-GateCommand -Name 'migration idempotent second run' -Command { npm.cmd run db:migrate }
   Invoke-GateCommand -Name 'migration status' -Command { npm.cmd run db:migrate:status }
 
-  $ApiProcess = Start-Process -FilePath 'node.exe' -ArgumentList 'apps/api/dist/main.js' -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru
-  $WorkerProcess = Start-Process -FilePath 'node.exe' -ArgumentList 'apps/worker/dist/main.js' -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru
+  $ApiProcess = Start-Process -FilePath 'node.exe' -ArgumentList 'backend/api/dist/main.js' -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru
+  $WorkerProcess = Start-Process -FilePath 'node.exe' -ArgumentList 'backend/worker/dist/main.js' -WorkingDirectory $ProjectRoot -WindowStyle Hidden -PassThru
 
   $ApiReady = $false
   for ($Attempt = 0; $Attempt -lt 20; $Attempt++) {

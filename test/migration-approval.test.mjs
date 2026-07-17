@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const sql = await readFile(new URL('../packages/database/migrations/0003_phase3_approval_audit.sql', import.meta.url), 'utf8');
+const sql = await readFile(new URL('../backend/database/migrations/0003_phase3_approval_audit.sql', import.meta.url), 'utf8');
 test('approval levels and amount thresholds are configurable', () => {
   assert.match(sql, /CREATE TABLE approval\.policy_level/);
   assert.match(sql, /minimum_amount numeric\(19,4\)/);
