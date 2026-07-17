@@ -122,3 +122,22 @@ export function canDecideApproval(input: ApprovalCheck): ApprovalDecision {
   }
   return { allowed: true };
 }
+
+export type StockStatus = 'AVAILABLE' | 'BLOCKED' | 'QUARANTINED' | 'DAMAGED' | 'EXPIRED' | 'RECALLED' | 'IN_TRANSIT';
+export interface AtpSnapshot { sellableOnHand: number; activeReservation: number; atp: number }
+export function calculateAtp(sellableOnHand: number, activeReservation: number): AtpSnapshot {
+  if (!Number.isSafeInteger(sellableOnHand) || !Number.isSafeInteger(activeReservation) || sellableOnHand < 0 || activeReservation < 0 || activeReservation > sellableOnHand) {
+    throw new Error('Invalid whole-case ATP inputs.');
+  }
+  return { sellableOnHand, activeReservation, atp: sellableOnHand - activeReservation };
+}
+
+export interface InventoryPostingLine {
+  skuId: string; batchId: string; quantity: WholeCaseQuantity;
+  source?: { warehouseId: string; locationId: string; status: StockStatus };
+  destination?: { warehouseId: string; locationId: string; status: StockStatus };
+}
+export interface InventoryPostingCommand {
+  documentType: string; documentId: string; idempotencyKey: string; actorId: string;
+  correlationId: string; reason?: string; lines: readonly InventoryPostingLine[];
+}
