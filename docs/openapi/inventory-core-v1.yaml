@@ -14,6 +14,12 @@ paths:
       parameters: [ { name: Idempotency-Key, in: header, required: true, schema: { type: string } } ]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReservationInput' } } } }
       responses: { '201': { description: Reserved or idempotent replay }, '409': { description: INVENTORY_ATP_INSUFFICIENT } }
+  /api/v1/inventory/reservations/{reservationId}/release:
+    post:
+      operationId: releaseReservation
+      parameters:
+        - { name: reservationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '201': { description: Idempotently released; no inventory movement created }, '403': { description: Permission or warehouse scope denied } }
   /api/v1/inventory/postings:
     post:
       operationId: postInventoryMovement

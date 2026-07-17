@@ -1,0 +1,15 @@
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query, Req } from '@nestjs/common';
+import { InventoryApplicationService, type PostingLineInput } from './inventory-application.service.js';
+
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function requiredUuid(value:string|undefined,name:string){if(!value||!uuid.test(value))throw new BadRequestException(`${name} must be UUID`);return value;}
+function quantity(value:unknown){if(!Number.isSafeInteger(value)||Number(value)<=0)throw new BadRequestException('quantity must be a positive whole case');return Number(value);}
+
+@Controller('inventory')
+export class InventoryController {
+  constructor(private readonly service:InventoryApplicationService){}
+  @Get('atp') atp(@Headers('x-actor-id') actor:string|undefined,@Query('skuId') sku:string|undefined,@Query('warehouseId') warehouse:string|undefined){return this.service.atp(requiredUuid(actor,'actorId'),requiredUuid(sku,'skuId'),requiredUuid(warehouse,'warehouseId'));}
+  @Post('reservations') reserve(@Headers('x-actor-id') actor:string|undefined,@Headers('idempotency-key') key:string|undefined,@Body() body:Record<string,unknown>){if(!key)throw new BadRequestException('Idempotency-Key is required');return this.service.reserve(requiredUuid(actor,'actorId'),{demandType:String(body.demandType??''),demandId:requiredUuid(body.demandId as string,'demandId'),skuId:requiredUuid(body.skuId as string,'skuId'),warehouseId:requiredUuid(body.warehouseId as string,'warehouseId'),quantity:quantity(body.quantity),...(body.expiresAt?{expiresAt:String(body.expiresAt)}:{})},key);}
+  @Post('reservations/:id/release') release(@Headers('x-actor-id') actor:string|undefined,@Param('id') id:string,@Body() body:Record<string,unknown>){return this.service.release(requiredUuid(actor,'actorId'),requiredUuid(id,'reservationId'),quantity(body.quantity));}
+  @Post('postings') post(@Headers('x-actor-id') actor:string|undefined,@Headers('idempotency-key') key:string|undefined,@Req() req:{correlationId?:string},@Body() body:{documentType?:string;documentId?:string;reason?:string;lines?:PostingLineInput[]}){if(!key||!body.lines?.length)throw new BadRequestException('Idempotency-Key and lines are required');for(const line of body.lines)quantity(line.quantity);return this.service.post(requiredUuid(actor,'actorId'),String(body.documentType??''),requiredUuid(body.documentId,'documentId'),key,requiredUuid(req.correlationId,'correlationId'),body.reason,body.lines);}
+}
