@@ -87,3 +87,38 @@ export function authorizeWarehouseAction(
   }
   return { allowed: true };
 }
+
+export type ApprovalDenialCode =
+  | 'REQUEST_NOT_PENDING'
+  | 'FOUR_EYES_VIOLATION'
+  | 'APPROVAL_LEVEL_MISMATCH'
+  | 'APPROVAL_PERMISSION_DENIED';
+
+export interface ApprovalCheck {
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  creatorId: string;
+  actorId: string;
+  fourEyesRequired: boolean;
+  currentLevel: number;
+  decisionLevel: number;
+  requiredPermission: string;
+  actorPermissions: readonly string[];
+}
+
+export type ApprovalDecision =
+  | { allowed: true }
+  | { allowed: false; code: ApprovalDenialCode };
+
+export function canDecideApproval(input: ApprovalCheck): ApprovalDecision {
+  if (input.status !== 'PENDING') return { allowed: false, code: 'REQUEST_NOT_PENDING' };
+  if (input.fourEyesRequired && input.creatorId === input.actorId) {
+    return { allowed: false, code: 'FOUR_EYES_VIOLATION' };
+  }
+  if (input.currentLevel !== input.decisionLevel) {
+    return { allowed: false, code: 'APPROVAL_LEVEL_MISMATCH' };
+  }
+  if (!input.actorPermissions.includes(input.requiredPermission)) {
+    return { allowed: false, code: 'APPROVAL_PERMISSION_DENIED' };
+  }
+  return { allowed: true };
+}
