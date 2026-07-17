@@ -6,3 +6,4 @@ test('API exposes ATP reservation release and posting',()=>{for(const route of [
 test('multi-line posting uses one database transaction',()=>{assert.match(service,/this\.db\.transaction/);assert.match(service,/for\(const \[index,line\] of lines\.entries\(\)\)/);});
 test('issue fulfillment runs with posting client transaction',()=>assert.match(service,/client\.query\('SELECT inventory\.fulfill_reservation/));
 test('expiry and fulfillment never create movement',()=>{assert.match(lifecycle,/expire_reservations/);assert.match(lifecycle,/fulfill_reservation/);assert.doesNotMatch(lifecycle,/inventory_movement_ledger/);});
+test('reversal endpoint creates a referenced REVERSAL movement',()=>{assert.match(controller,/postings\/:movementId\/reverse/);assert.match(service,/'REVERSAL','REVERSAL'/);assert.match(service,/reversalOf:movementId/);});

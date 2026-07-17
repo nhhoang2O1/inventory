@@ -49,6 +49,21 @@ export class InventoryApplicationService {
     }); } catch(error){this.mapConflict(error);}
   }
 
+  async reverse(actorId:string,movementId:string,documentId:string,key:string,correlationId:string,reason:string){
+    const rows=await this.db.query<{sku_id:string;batch_id:string;quantity:string;source_warehouse_id:string|null;source_location_id:string|null;source_status:string|null;destination_warehouse_id:string|null;destination_location_id:string|null;destination_status:string|null}>(
+      'SELECT sku_id,batch_id,quantity,source_warehouse_id,source_location_id,source_status,destination_warehouse_id,destination_location_id,destination_status FROM inventory.inventory_movement_ledger WHERE id=$1',[movementId]);
+    const original=rows[0];if(!original)throw new NotFoundException('Movement not found');
+    const warehouseId=original.destination_warehouse_id??original.source_warehouse_id;if(!warehouseId)throw new ConflictException('Original movement has no warehouse');
+    await this.authorize(actorId,'INVENTORY.REVERSE',warehouseId);
+    try{return await this.db.transaction(async client=>{
+      const result=await client.query<{id:string}>('SELECT inventory.post_movement($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) id',[
+        'REVERSAL','REVERSAL',documentId,key,original.sku_id,original.batch_id,Number(original.quantity),
+        original.destination_warehouse_id,original.destination_location_id,original.destination_status,
+        original.source_warehouse_id,original.source_location_id,original.source_status,actorId,correlationId,reason,movementId]);
+      return{movementId:result.rows[0]?.id,reversalOf:movementId};
+    });}catch(error){this.mapConflict(error);}
+  }
+
   private async postLine(client:PoolClient,actorId:string,documentType:string,documentId:string,key:string,correlationId:string,reason:string|undefined,line:PostingLineInput){
     const result=await client.query<{id:string}>('SELECT inventory.post_movement($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) id',[
       line.source&&line.destination?'TRANSFER':line.source?'ISSUE':'RECEIPT',documentType,documentId,key,line.skuId,line.batchId,line.quantity,
