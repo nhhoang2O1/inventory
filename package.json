@@ -1,0 +1,26 @@
+{
+  "name": "warehouse-wms",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Beer and soft-drink wholesale warehouse management system",
+  "engines": {
+    "node": ">=22.12 <23",
+    "npm": ">=10 <11"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "verify": "node scripts/verify-foundation.mjs",
+    "build": "npm run build --workspace @wms/contracts && npm run build --workspace @wms/database && npm run build --workspace @wms/api && npm run build --workspace @wms/worker && npm run build --workspace @wms/web",
+    "test": "npm run verify && node --test test/contracts.test.mjs test/migration-foundation.test.mjs && npm run test --workspaces --if-present",
+    "dev:api": "npm run dev --workspace @wms/api",
+    "dev:web": "npm run dev --workspace @wms/web",
+    "dev:worker": "npm run dev --workspace @wms/worker",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run migrate --workspace @wms/database",
+    "db:migrate:status": "npm run migrate:status --workspace @wms/database"
+  }
+}

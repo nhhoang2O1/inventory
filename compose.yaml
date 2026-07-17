@@ -1,0 +1,73 @@
+name: warehouse-wms
+
+services:
+  postgres:
+    image: postgres:17.5-bookworm
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-warehouse_wms}
+      POSTGRES_USER: ${POSTGRES_USER:-wms_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wms_local_only}
+    ports:
+      - "${POSTGRES_HOST_PORT:-55432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        APP: api
+    environment:
+      NODE_ENV: production
+      API_PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-wms_app}:${POSTGRES_PASSWORD:-wms_local_only}@postgres:5432/${POSTGRES_DB:-warehouse_wms}
+      CORS_ORIGINS: http://localhost:5173
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/v1/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  worker:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        APP: worker
+    command: ["node", "apps/worker/dist/main.js"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-wms_app}:${POSTGRES_PASSWORD:-wms_local_only}@postgres:5432/${POSTGRES_DB:-warehouse_wms}
+      OUTBOX_POLL_INTERVAL_MS: 1000
+      OUTBOX_BATCH_SIZE: 50
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    profiles: [full]
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      - "5173:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

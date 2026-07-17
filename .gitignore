@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.env
+*.log
+phase2-admin-gate.status
+.DS_Store
+.idea/
+.vscode/
+postgres-data/
+minio-data/
