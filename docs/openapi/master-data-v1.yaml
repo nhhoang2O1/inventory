@@ -28,6 +28,11 @@ paths:
       operationId: createMasterDataImport
       parameters: [ { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 16 } } ]
       responses: { '202': { description: Validation/import job accepted }, '422': { description: Row validation report } }
+  /api/v1/master-data/exports:
+    post:
+      operationId: createMasterDataExport
+      security: [ { bearerAuth: [] } ]
+      responses: { '202': { description: Permission-scoped asynchronous CSV/XLSX export accepted }, '403': { description: Permission or warehouse scope denied } }
 components:
   securitySchemes: { bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT } }
   schemas:
