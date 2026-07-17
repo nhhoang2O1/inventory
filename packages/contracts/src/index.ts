@@ -55,3 +55,35 @@ export function wholeCaseQuantity(value: number): WholeCaseQuantity {
   }
   return value as WholeCaseQuantity;
 }
+
+export type AccessDenialCode =
+  | 'ACTOR_INACTIVE'
+  | 'PERMISSION_DENIED'
+  | 'WAREHOUSE_SCOPE_DENIED';
+
+export interface ActorAccess {
+  userId: string;
+  effectiveRoleId: string;
+  active: boolean;
+  permissions: readonly string[];
+  warehouseIds: readonly string[];
+}
+
+export type AccessDecision =
+  | { allowed: true }
+  | { allowed: false; code: AccessDenialCode };
+
+export function authorizeWarehouseAction(
+  actor: ActorAccess,
+  requiredPermission: string,
+  warehouseId: string
+): AccessDecision {
+  if (!actor.active) return { allowed: false, code: 'ACTOR_INACTIVE' };
+  if (!actor.permissions.includes(requiredPermission)) {
+    return { allowed: false, code: 'PERMISSION_DENIED' };
+  }
+  if (!actor.warehouseIds.includes(warehouseId)) {
+    return { allowed: false, code: 'WAREHOUSE_SCOPE_DENIED' };
+  }
+  return { allowed: true };
+}

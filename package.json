@@ -14,7 +14,7 @@
   "scripts": {
     "verify": "node scripts/verify-foundation.mjs",
     "build": "npm run build --workspace @wms/contracts && npm run build --workspace @wms/database && npm run build --workspace @wms/api && npm run build --workspace @wms/worker && npm run build --workspace @wms/web",
-    "test": "npm run verify && node --test test/contracts.test.mjs test/migration-foundation.test.mjs && npm run test --workspaces --if-present",
+    "test": "npm run verify && node --test test/*.test.mjs && npm run test --workspaces --if-present",
     "dev:api": "npm run dev --workspace @wms/api",
     "dev:web": "npm run dev --workspace @wms/web",
     "dev:worker": "npm run dev --workspace @wms/worker",
