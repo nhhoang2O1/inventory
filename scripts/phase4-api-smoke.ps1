@@ -33,7 +33,7 @@ DELETE FROM inventory.batch WHERE sku_id='40000000-0000-4000-8000-000000000003';
 DELETE FROM iam.user_warehouse_scope WHERE user_id='40000000-0000-4000-8000-000000000011';
 DELETE FROM iam.app_user WHERE id='40000000-0000-4000-8000-000000000011';
 DELETE FROM iam.role_permission WHERE role_id='40000000-0000-4000-8000-000000000007';
-DELETE FROM iam.permission WHERE id::text LIKE '40000000-0000-4000-8000-00000000000%';
+DELETE FROM iam.permission WHERE id IN ('40000000-0000-4000-8000-000000000008','40000000-0000-4000-8000-000000000009','40000000-0000-4000-8000-000000000010');
 DELETE FROM iam.role WHERE id='40000000-0000-4000-8000-000000000007';
 DELETE FROM warehouse.location WHERE id='40000000-0000-4000-8000-000000000006'; DELETE FROM warehouse.zone WHERE id='40000000-0000-4000-8000-000000000005'; DELETE FROM warehouse.warehouse WHERE id='40000000-0000-4000-8000-000000000004';
 DELETE FROM catalog.sku WHERE id='40000000-0000-4000-8000-000000000003'; DELETE FROM catalog.product WHERE id='40000000-0000-4000-8000-000000000002'; DELETE FROM catalog.unit_of_measure WHERE id='40000000-0000-4000-8000-000000000001'; COMMIT;
@@ -42,6 +42,7 @@ DELETE FROM catalog.sku WHERE id='40000000-0000-4000-8000-000000000003'; DELETE 
 $process = $null
 try {
   docker compose exec -T postgres psql -U wms_app -d warehouse_wms -v ON_ERROR_STOP=1 -c $seed | Out-Null
+  if($LASTEXITCODE -ne 0){throw 'Phase 4 API smoke seed failed'}
   $process = Start-Process -FilePath 'node.exe' -ArgumentList 'apps/api/dist/main.js' -WorkingDirectory $ProjectRoot -WindowStyle Hidden -RedirectStandardOutput $logOut -RedirectStandardError $logErr -PassThru
   for ($i=0; $i -lt 20; $i++) { try { Invoke-RestMethod 'http://localhost:3100/api/v1/health' | Out-Null; break } catch { Start-Sleep -Milliseconds 300 } }
   $headers = @{ 'x-actor-id'='40000000-0000-4000-8000-000000000011'; 'x-correlation-id'='40000000-0000-4000-8000-000000000014'; 'Idempotency-Key'='phase4-api-post-0001' }

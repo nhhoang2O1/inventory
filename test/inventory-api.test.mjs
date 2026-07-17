@@ -7,3 +7,6 @@ test('multi-line posting uses one database transaction',()=>{assert.match(servic
 test('issue fulfillment runs with posting client transaction',()=>assert.match(service,/client\.query\('SELECT inventory\.fulfill_reservation/));
 test('expiry and fulfillment never create movement',()=>{assert.match(lifecycle,/expire_reservations/);assert.match(lifecycle,/fulfill_reservation/);assert.doesNotMatch(lifecycle,/inventory_movement_ledger/);});
 test('reversal endpoint creates a referenced REVERSAL movement',()=>{assert.match(controller,/postings\/:movementId\/reverse/);assert.match(service,/'REVERSAL','REVERSAL'/);assert.match(service,/reversalOf:movementId/);});
+test('query API exposes balance reservation in-transit and reconciliation',()=>{for(const route of ['balances','reservations','in-transit','reconciliation'])assert.match(controller,new RegExp(`@Get\\('${route}'\\)`));});
+test('posting authorizes every source and destination warehouse',()=>assert.match(service,/for\(const id of warehouseIds\)await this\.authorize/));
+test('fulfillment is performed before source balance debit',()=>{const fulfill=service.indexOf('fulfill_reservation');const post=service.indexOf('const result=await this.postLine',fulfill);assert.ok(fulfill>0&&post>fulfill);});

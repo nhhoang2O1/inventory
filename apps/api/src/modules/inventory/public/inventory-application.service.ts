@@ -20,6 +20,23 @@ export class InventoryApplicationService {
     return {skuId,warehouseId,sellableOnHand:Number(row.sellable_on_hand),activeReservation:Number(row.active_reservation),atp:Number(row.atp)};
   }
 
+  async balances(actorId:string,warehouseId:string,skuId?:string){
+    await this.authorize(actorId,'INVENTORY.VIEW',warehouseId);
+    return this.db.query('SELECT sku_id,batch_id,location_id,stock_status,quantity_on_hand,version FROM inventory.inventory_balance WHERE warehouse_id=$1 AND ($2::uuid IS NULL OR sku_id=$2) ORDER BY sku_id,batch_id,location_id,stock_status',[warehouseId,skuId??null]);
+  }
+  async reservations(actorId:string,warehouseId:string,skuId?:string){
+    await this.authorize(actorId,'INVENTORY.VIEW',warehouseId);
+    return this.db.query('SELECT id,demand_type,demand_id,sku_id,batch_id,location_id,quantity_reserved,quantity_fulfilled,quantity_released,status,expires_at,version FROM inventory.inventory_reservation WHERE warehouse_id=$1 AND ($2::uuid IS NULL OR sku_id=$2) ORDER BY created_at DESC',[warehouseId,skuId??null]);
+  }
+  async inTransit(actorId:string,warehouseId:string){
+    await this.authorize(actorId,'INVENTORY.VIEW',warehouseId);
+    return this.db.query("SELECT sku_id,batch_id,sum(quantity_on_hand)::bigint quantity_in_transit FROM inventory.inventory_balance WHERE warehouse_id=$1 AND stock_status='IN_TRANSIT' GROUP BY sku_id,batch_id",[warehouseId]);
+  }
+  async reconciliation(actorId:string,warehouseId:string){
+    await this.authorize(actorId,'INVENTORY.RECONCILE',warehouseId);
+    return this.db.query('SELECT sku_id,batch_id,location_id,stock_status,quantity_on_hand,ledger_quantity,variance FROM inventory.ledger_balance_reconciliation WHERE warehouse_id=$1 ORDER BY abs(variance) DESC',[warehouseId]);
+  }
+
   async reserve(actorId:string,input:{demandType:string;demandId:string;skuId:string;warehouseId:string;quantity:number;expiresAt?:string},key:string){
     await this.authorize(actorId,'INVENTORY.RESERVE',input.warehouseId);
     try { const rows=await this.db.query<{id:string}>('SELECT inventory.reserve_inventory($1,$2,$3,$4,$5,$6,$7) id',
@@ -37,13 +54,14 @@ export class InventoryApplicationService {
   async post(actorId:string,documentType:string,documentId:string,key:string,correlationId:string,reason:string|undefined,lines:readonly PostingLineInput[]){
     const warehouseId=lines[0]?.destination?.warehouseId??lines[0]?.source?.warehouseId;
     if(!warehouseId) throw new ConflictException('Posting requires source or destination');
-    await this.authorize(actorId,'INVENTORY.POST',warehouseId);
+    const warehouseIds=new Set(lines.flatMap(line=>[line.source?.warehouseId,line.destination?.warehouseId].filter((id):id is string=>Boolean(id))));
+    for(const id of warehouseIds)await this.authorize(actorId,'INVENTORY.POST',id);
     try { return await this.db.transaction(async client=>{
       const movementIds:string[]=[];
       for(const [index,line] of lines.entries()){
+        if(line.reservationId){if(!line.source)throw new ConflictException('Reservation fulfillment requires an issue source');await client.query('SELECT inventory.fulfill_reservation($1,$2,$3,$4)',[line.reservationId,line.skuId,line.source.warehouseId,line.quantity]);}
         const result=await this.postLine(client,actorId,documentType,documentId,`${key}:${index}`,correlationId,reason,line);
         movementIds.push(result);
-        if(line.reservationId) await client.query('SELECT inventory.fulfill_reservation($1,$2)',[line.reservationId,line.quantity]);
       }
       return {documentId,movementIds,replayed:false};
     }); } catch(error){this.mapConflict(error);}

@@ -1,6 +1,27 @@
 openapi: 3.1.0
 info: { title: WMS Inventory Core API, version: 0.4.0 }
 paths:
+  /api/v1/inventory/balances:
+    get:
+      operationId: listInventoryBalances
+      responses: { '200': { description: On-hand by SKU, batch, location and status } }
+  /api/v1/inventory/reservations:
+    get:
+      operationId: listInventoryReservations
+      responses: { '200': { description: Reservation lifecycle query } }
+    post:
+      operationId: reserveInventory
+      parameters: [ { name: Idempotency-Key, in: header, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReservationInput' } } } }
+      responses: { '201': { description: Reserved or idempotent replay }, '409': { description: INVENTORY_ATP_INSUFFICIENT } }
+  /api/v1/inventory/in-transit:
+    get:
+      operationId: listInTransitInventory
+      responses: { '200': { description: Enterprise-owned IN_TRANSIT quantities } }
+  /api/v1/inventory/reconciliation:
+    get:
+      operationId: reconcileLedgerAndBalance
+      responses: { '200': { description: Ledger-derived quantity, balance and variance } }
   /api/v1/inventory/atp:
     get:
       operationId: getAtp
@@ -8,12 +29,6 @@ paths:
         - { name: skuId, in: query, required: true, schema: { type: string, format: uuid } }
         - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
       responses: { '200': { description: Canonical sellable on-hand, active reservation and ATP snapshot } }
-  /api/v1/inventory/reservations:
-    post:
-      operationId: reserveInventory
-      parameters: [ { name: Idempotency-Key, in: header, required: true, schema: { type: string } } ]
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReservationInput' } } } }
-      responses: { '201': { description: Reserved or idempotent replay }, '409': { description: INVENTORY_ATP_INSUFFICIENT } }
   /api/v1/inventory/reservations/{reservationId}/release:
     post:
       operationId: releaseReservation
