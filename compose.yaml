@@ -48,7 +48,7 @@ services:
       dockerfile: Dockerfile.node
       args:
         APP: worker
-    command: ["node", "backend/worker/dist/main.js"]
+    command: ["node", "apps/worker/dist/main.js"]
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-wms_app}:${POSTGRES_PASSWORD:-wms_local_only}@postgres:5432/${POSTGRES_DB:-warehouse_wms}
@@ -62,7 +62,7 @@ services:
     profiles: [full]
     build:
       context: .
-      dockerfile: frontend/web/Dockerfile
+      dockerfile: apps/web/Dockerfile
     ports:
       - "5173:8080"
     depends_on:

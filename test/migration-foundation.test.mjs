@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const migrationUrl = new URL('../backend/database/migrations/0001_phase2_foundation.sql', import.meta.url);
+const migrationUrl = new URL('../packages/database/migrations/0001_phase2_foundation.sql', import.meta.url);
 const sql = await readFile(migrationUrl, 'utf8');
 
 test('idempotency scope is unique by caller, operation and key', () => {

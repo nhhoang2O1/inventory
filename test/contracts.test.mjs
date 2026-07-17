@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { wholeCaseQuantity } from '../shared/contracts/dist/index.js';
+import { wholeCaseQuantity } from '../packages/contracts/dist/index.js';
 
 test('accepts a positive integer whole-case quantity', () => {
   assert.equal(wholeCaseQuantity(20), 20);
