@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>WMS Account Registration</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "error-container": "#ffdad6",
+                      "surface": "#f7fafc",
+                      "on-primary-fixed": "#001b3c",
+                      "on-background": "#181c1e",
+                      "secondary-fixed": "#d3e4ff",
+                      "primary-fixed": "#d6e3ff",
+                      "secondary-fixed-dim": "#a2c9ff",
+                      "on-tertiary-fixed": "#002110",
+                      "background": "#f7fafc",
+                      "surface-container-highest": "#e0e3e5",
+                      "on-tertiary": "#ffffff",
+                      "on-error": "#ffffff",
+                      "inverse-surface": "#2d3133",
+                      "on-surface-variant": "#43474e",
+                      "tertiary-container": "#003f23",
+                      "surface-container-low": "#f1f4f6",
+                      "surface-container-lowest": "#ffffff",
+                      "secondary-container": "#7db6ff",
+                      "on-primary-fixed-variant": "#2d476f",
+                      "on-surface": "#181c1e",
+                      "primary-container": "#1a365d",
+                      "surface-tint": "#455f88",
+                      "outline-variant": "#c4c6cf",
+                      "on-secondary": "#ffffff",
+                      "on-primary": "#ffffff",
+                      "error": "#ba1a1a",
+                      "secondary": "#1960a3",
+                      "on-secondary-container": "#00477f",
+                      "on-secondary-fixed-variant": "#004881",
+                      "surface-variant": "#e0e3e5",
+                      "surface-container-high": "#e5e9eb",
+                      "tertiary-fixed-dim": "#74db9d",
+                      "on-secondary-fixed": "#001c38",
+                      "surface-container": "#ebeef0",
+                      "surface-bright": "#f7fafc",
+                      "on-primary-container": "#86a0cd",
+                      "on-tertiary-container": "#4bb278",
+                      "on-error-container": "#93000a",
+                      "tertiary": "#002713",
+                      "tertiary-fixed": "#91f8b8",
+                      "outline": "#74777f",
+                      "primary-fixed-dim": "#adc7f7",
+                      "inverse-primary": "#adc7f7",
+                      "inverse-on-surface": "#eef1f3",
+                      "primary": "#002045",
+                      "surface-dim": "#d7dadc",
+                      "on-tertiary-fixed-variant": "#00522f"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "density-compact": "8px",
+                      "density-comfortable": "16px",
+                      "unit": "4px",
+                      "grid-gutter": "16px",
+                      "container-padding": "24px"
+              },
+              "fontFamily": {
+                      "label-caps": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "data-mono": [
+                              "Inter"
+                      ],
+                      "headline-sm": [
+                              "Inter"
+                      ],
+                      "headline-md": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "display-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "data-mono": [
+                              "13px",
+                              {
+                                      "lineHeight": "18px",
+                                      "letterSpacing": "0.01em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "headline-sm": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7fafc; /* bg-surface */
+        }
+        .input-field {
+            @apply w-full bg-surface-container-lowest border border-outline-variant text-on-surface font-body-md text-body-md px-density-comfortable py-density-compact focus:outline-none focus:border-secondary focus:border-2 transition-colors;
+        }
+        .input-label {
+            @apply block text-on-surface-variant font-label-caps text-label-caps mb-unit;
+        }
+        .btn-primary {
+            @apply w-full bg-[#2B6CB0] text-on-primary font-headline-sm text-headline-sm py-density-comfortable hover:bg-primary transition-colors flex justify-center items-center gap-2;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-grid-gutter">
+<div class="w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-lg p-container-padding flex flex-col gap-grid-gutter">
+<!-- Header -->
+<div class="text-center flex flex-col items-center gap-density-compact">
+<img alt="WMS Logo" class="w-20 h-20 object-contain" src="https://lh3.googleusercontent.com/aida/AP1WRLsjGKp0UTBkVBB9NHsO6tQYFUhO1jEQIA-Q4sChT_fwTO1r7oqSsy6hXE0C3jW0byW0wQvqq4oHZXuGPeMfnFddmazYgKBfn2e2cLCeDKZm7kuDqbWuFoagVcKQpJYjKi38h6xzOiivQHbmRaP39gIqZCvfnxrjYaSU3G14fm2wPVDwQ4Hh_ED-OaGtlxL0PxyrjEwnkR4f5BQkt4Ma0oyVT3z5GCKg8WfMqsoJcwcq1DBeecC50R4lc4I"/>
+<h1 class="text-primary font-headline-md text-headline-md mt-density-compact">System Registration</h1>
+<p class="text-on-surface-variant font-body-md text-body-md">Create your operator profile</p>
+</div>
+<!-- Form -->
+<form action="#" class="flex flex-col gap-density-comfortable" method="POST">
+<!-- Full Name -->
+<div>
+<label class="input-label" for="fullName">Full Name</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-density-comfortable top-1/2 -translate-y-1/2 text-outline">person</span>
+<input class="input-field pl-10" id="fullName" name="fullName" placeholder="John Doe" required="" type="text"/>
+</div>
+</div>
+<!-- Work Email -->
+<div>
+<label class="input-label" for="email">Work Email</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-density-comfortable top-1/2 -translate-y-1/2 text-outline">mail</span>
+<input class="input-field pl-10" id="email" name="email" placeholder="operator@wms.local" required="" type="email"/>
+</div>
+</div>
+<!-- Operator ID -->
+<div>
+<label class="input-label" for="operatorId">Operator ID</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-density-comfortable top-1/2 -translate-y-1/2 text-outline">badge</span>
+<input class="input-field pl-10 font-data-mono text-data-mono" id="operatorId" name="operatorId" placeholder="OP-XXXX" required="" type="text"/>
+</div>
+</div>
+<!-- Default Warehouse -->
+<div>
+<label class="input-label" for="warehouse">Default Warehouse</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-density-comfortable top-1/2 -translate-y-1/2 text-outline">warehouse</span>
+<select class="input-field pl-10 appearance-none cursor-pointer" id="warehouse" name="warehouse" required="">
+<option disabled="" selected="" value="">Select Depot</option>
+<option value="alpha">Primary Depot Alpha</option>
+<option value="beta">Secondary Depot Beta</option>
+<option value="gamma">Cold Storage Gamma</option>
+</select>
+<span class="material-symbols-outlined absolute right-density-comfortable top-1/2 -translate-y-1/2 text-outline pointer-events-none">arrow_drop_down</span>
+</div>
+</div>
+<!-- Passwords Row -->
+<div class="flex flex-col md:flex-row gap-density-comfortable">
+<div class="flex-1">
+<label class="input-label" for="password">Password</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-density-comfortable top-1/2 -translate-y-1/2 text-outline">lock</span>
+<input class="input-field pl-10" id="password" name="password" placeholder="••••••••" required="" type="password"/>
+</div>
+</div>
+<div class="flex-1">
+<label class="input-label" for="confirmPassword">Confirm Password</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-density-comfortable top-1/2 -translate-y-1/2 text-outline">lock_clock</span>
+<input class="input-field pl-10" id="confirmPassword" name="confirmPassword" placeholder="••••••••" required="" type="password"/>
+</div>
+</div>
+</div>
+<!-- Submit Action -->
+<div class="pt-density-compact">
+<button class="btn-primary rounded" type="submit">
+<span>Register Account</span>
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">how_to_reg</span>
+</button>
+</div>
+<!-- Link to Login -->
+<div class="text-center mt-unit">
+<a class="text-secondary font-body-md text-body-md hover:underline flex items-center justify-center gap-1" href="#">
+<span class="material-symbols-outlined text-[16px]">arrow_back</span>
+                    Return to Login
+                </a>
+</div>
+</form>
+</div>
+</body></html>

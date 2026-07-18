@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Supplier Lead Time Analytics</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "inverse-on-surface": "#eef1f3",
+                      "surface-bright": "#f7fafc",
+                      "secondary": "#1960a3",
+                      "secondary-fixed": "#d3e4ff",
+                      "primary": "#002045",
+                      "inverse-surface": "#2d3133",
+                      "background": "#f7fafc",
+                      "on-tertiary-fixed-variant": "#00522f",
+                      "on-primary": "#ffffff",
+                      "on-error": "#ffffff",
+                      "surface-variant": "#e0e3e5",
+                      "on-primary-container": "#86a0cd",
+                      "on-surface": "#181c1e",
+                      "on-background": "#181c1e",
+                      "on-tertiary-container": "#4bb278",
+                      "on-secondary-container": "#00477f",
+                      "surface-dim": "#d7dadc",
+                      "inverse-primary": "#adc7f7",
+                      "primary-fixed-dim": "#adc7f7",
+                      "surface-container-highest": "#e0e3e5",
+                      "on-primary-fixed-variant": "#2d476f",
+                      "tertiary-fixed-dim": "#74db9d",
+                      "error": "#ba1a1a",
+                      "secondary-container": "#7db6ff",
+                      "surface-container-lowest": "#ffffff",
+                      "on-tertiary-fixed": "#002110",
+                      "surface-container": "#ebeef0",
+                      "surface-tint": "#455f88",
+                      "on-primary-fixed": "#001b3c",
+                      "tertiary-fixed": "#91f8b8",
+                      "error-container": "#ffdad6",
+                      "secondary-fixed-dim": "#a2c9ff",
+                      "outline": "#74777f",
+                      "on-secondary": "#ffffff",
+                      "surface-container-low": "#f1f4f6",
+                      "surface": "#f7fafc",
+                      "outline-variant": "#c4c6cf",
+                      "tertiary-container": "#003f23",
+                      "on-error-container": "#93000a",
+                      "surface-container-high": "#e5e9eb",
+                      "tertiary": "#002713",
+                      "on-secondary-fixed-variant": "#004881",
+                      "primary-container": "#1a365d",
+                      "primary-fixed": "#d6e3ff",
+                      "on-tertiary": "#ffffff",
+                      "on-surface-variant": "#43474e",
+                      "on-secondary-fixed": "#001c38"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "density-comfortable": "16px",
+                      "density-compact": "8px",
+                      "container-padding": "24px",
+                      "unit": "4px",
+                      "grid-gutter": "16px"
+              },
+              "fontFamily": {
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "headline-sm": [
+                              "Inter"
+                      ],
+                      "label-caps": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "data-mono": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "headline-sm": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "display-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "data-mono": [
+                              "13px",
+                              {
+                                      "lineHeight": "18px",
+                                      "letterSpacing": "0.01em",
+                                      "fontWeight": "500"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+      </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined[style*="FILL' 1"] {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md overflow-x-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 w-full md:w-[calc(100%-240px)] z-40 bg-surface-container-lowest dark:bg-surface-container border-b border-outline-variant dark:border-outline flat no shadows flex justify-between items-center h-16 px-6">
+<div class="flex items-center gap-6">
+<div class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed md:hidden">FMCG Warehouse</div>
+<!-- Navigation Links (Web) -->
+<nav class="hidden md:flex gap-6">
+<a class="text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-container-high rounded-lg cursor-pointer transition-opacity active:opacity-70 px-2 py-1" href="#">
+                    API: Healthy
+                </a>
+<a class="text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-low dark:hover:bg-surface-container-high rounded-lg cursor-pointer transition-opacity active:opacity-70 px-2 py-1" href="#">
+                    DB Sync: Live
+                </a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden sm:block">
+<span class="text-primary dark:text-primary-fixed font-headline-sm text-headline-sm mr-4">Warehouse Alpha</span>
+<span class="text-on-surface-variant dark:text-surface-variant font-body-md text-body-md">MFA Active</span>
+</div>
+<!-- Icon Actions -->
+<div class="flex gap-2">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-colors">
+<span class="material-symbols-outlined">help</span>
+</button>
+</div>
+<img alt="FMCG Brand Logo" class="w-8 h-8 rounded-full bg-surface-container-high" data-alt="A clean, minimalist abstract logo for an FMCG brand, using deep navy blue and stark white, creating a strong industrial corporate identity. Lighting is flat and professional." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDuDcIcCzlbvdLEaNlRfx3vMnNxrUVZHMgPSsvUAZXvmx4xkInQ0nV94hUxZbE8xq47sfYR51AKx6-juJDr9c3WL7TcpTk0qOMNon0fCQlKOrqgXrQWPIadtByHPnNXZuR3dZqUFMeTvfXCKjb1ANWwgowfXPDLNNfrf2s2bxtnij8Usb2RtR36uVYSRFuFq1m9P6ceLg0iBDc1MSVQJJqBDe4k-tOrR8M00WhyqWrS0BIo12cbjSDQ"/>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[240px] z-50 bg-surface dark:bg-background border-r border-outline-variant dark:border-outline flat no shadows flex flex-col h-screen overflow-y-auto hidden md:flex">
+<!-- Header -->
+<div class="p-6 border-b border-outline-variant flex items-center gap-3">
+<img alt="User Profile Avatar" class="w-10 h-10 rounded-lg object-cover" data-alt="A high-quality 3D rendered avatar icon for a warehouse admin, featuring a stylized hardhat and clipboard, illuminated with soft studio lighting against a light grey background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDAzK1EYXNRAHPLJ2npokYAAsG8aoI776oWkMdafB8NEaOBot4qXyHhtctG-FwlZBuyZ7bskXJI5Y2_zoEE1IZyNwj5CKVUzO_CBe7Y19vHm6oSb6Wvnm9sv6p1j9x4YQcik-c29DJ38V5hFiRCFA3g2t2WhNghwiRTMLs3z8ae5MGyBHYRI9MLb3Wma0h8E4_1GPmlHFNCjeBLyAgbEWJCjwWnLvR6SCJViFfH03fnK-b2rE7lcbJ4"/>
+<div>
+<h1 class="font-display-lg text-display-lg font-black text-primary dark:text-primary-fixed text-lg">WMS Admin</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Primary Depot</p>
+</div>
+</div>
+<!-- Main Nav -->
+<nav class="flex-1 py-4 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">login</span>
+                Inbound
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">conveyor_belt</span>
+                Outbound
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+                Inventory
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container dark:bg-on-secondary-container dark:text-secondary-fixed font-bold border-l-4 border-secondary transition-all duration-200 active:scale-95 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">analytics</span>
+                Financial Reports
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95 font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined">rule</span>
+                Approval Center
+            </a>
+</nav>
+<!-- CTA -->
+<div class="px-4 pb-4">
+<button class="w-full bg-primary text-on-primary py-3 rounded-lg font-label-caps text-label-caps flex items-center justify-center gap-2 hover:bg-primary-container transition-colors">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Entry
+            </button>
+</div>
+<!-- Footer Nav -->
+<div class="mt-auto border-t border-outline-variant py-2">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+                Settings
+            </a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined text-[20px]">help</span>
+                Support
+            </a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="mt-16 md:ml-[240px] p-container-padding min-h-screen bg-surface-bright">
+<!-- Dashboard Header -->
+<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+<div>
+<h2 class="font-headline-md text-headline-md text-primary font-bold">Supplier Lead Time Analytics</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Analysis of supplier delivery performance and lead times.</p>
+</div>
+<button class="bg-surface text-secondary border border-secondary hover:bg-surface-container-low px-4 py-2 rounded font-label-caps text-label-caps flex items-center gap-2 transition-colors">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                Export CSV
+            </button>
+</div>
+<!-- Summary Widgets -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-grid-gutter mb-8">
+<!-- Widget 1 -->
+<div class="bg-white p-6 rounded border border-outline-variant">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-body-md text-body-md text-on-surface-variant">Average Lead Time</h3>
+<span class="material-symbols-outlined text-outline">schedule</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-md text-headline-md text-on-surface">4.2 days</span>
+<span class="font-body-md text-body-md text-on-tertiary-container bg-tertiary-fixed-dim bg-opacity-20 px-2 py-0.5 rounded flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px]">arrow_downward</span>
+                        0.5 days
+                    </span>
+</div>
+</div>
+<!-- Widget 2 -->
+<div class="bg-white p-6 rounded border border-outline-variant">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-body-md text-body-md text-on-surface-variant">OTD Rate</h3>
+<span class="material-symbols-outlined text-outline">verified</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-md text-headline-md text-on-surface">88%</span>
+<span class="font-body-md text-body-md text-on-tertiary-container bg-tertiary-fixed-dim bg-opacity-20 px-2 py-0.5 rounded flex items-center gap-1">
+                        Target: 95%
+                    </span>
+</div>
+</div>
+<!-- Widget 3 -->
+<div class="bg-white p-6 rounded border border-outline-variant border-l-4 border-l-error">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-body-md text-body-md text-on-surface-variant">Delay Risk POs</h3>
+<span class="material-symbols-outlined text-error">warning</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="font-headline-md text-headline-md text-on-surface">5</span>
+<span class="font-body-md text-body-md text-error">delayed orders</span>
+</div>
+</div>
+</div>
+<!-- Main Workspace Area -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-grid-gutter">
+<!-- Gantt Chart Column -->
+<div class="lg:col-span-2 space-y-grid-gutter">
+<div class="bg-white rounded border border-outline-variant p-6">
+<h3 class="font-headline-sm text-headline-sm text-primary mb-6">PO Delivery Timeline</h3>
+<!-- Gantt Container -->
+<div class="overflow-x-auto">
+<div class="min-w-[600px]">
+<!-- Header / Timeline -->
+<div class="flex border-b border-outline-variant pb-2 mb-4">
+<div class="w-32 font-label-caps text-label-caps text-on-surface-variant">PO Number</div>
+<div class="flex-1 flex justify-between font-label-caps text-label-caps text-on-surface-variant px-4">
+<span>T-14</span>
+<span>T-10</span>
+<span>T-7</span>
+<span>T-3</span>
+<span>Today</span>
+</div>
+</div>
+<!-- Row 1: On Time -->
+<div class="flex items-center py-3 border-b border-surface-variant hover:bg-surface-bright transition-colors">
+<div class="w-32 font-data-mono text-data-mono text-on-surface">PO-2023-1105</div>
+<div class="flex-1 relative h-6 bg-surface-container rounded ml-4 mr-4">
+<!-- Progress Bar -->
+<div class="absolute left-0 top-0 h-full bg-secondary rounded w-[60%]"></div>
+<!-- Target Flag -->
+<div class="absolute left-[70%] -top-1">
+<span class="material-symbols-outlined text-on-tertiary-container text-[20px]" style="font-variation-settings: 'FILL' 1;">flag</span>
+</div>
+</div>
+</div>
+<!-- Row 2: Delayed -->
+<div class="flex items-center py-3 border-b border-surface-variant hover:bg-surface-bright transition-colors bg-error-container bg-opacity-10">
+<div class="w-32 font-data-mono text-data-mono text-on-surface">PO-2023-1104</div>
+<div class="flex-1 relative h-6 bg-surface-container rounded ml-4 mr-4">
+<!-- Progress Bar (On time part) -->
+<div class="absolute left-[10%] top-0 h-full bg-secondary rounded-l w-[70%] z-10"></div>
+<!-- Target Flag -->
+<div class="absolute left-[80%] -top-1 z-20">
+<span class="material-symbols-outlined text-on-tertiary-container text-[20px]" style="font-variation-settings: 'FILL' 1;">flag</span>
+</div>
+<!-- Delayed part -->
+<div class="absolute left-[80%] top-0 h-full bg-error rounded-r w-[20%] z-10 flex items-center justify-end px-2">
+<span class="font-label-caps text-[10px] text-on-error whitespace-nowrap">Delayed 2 days</span>
+</div>
+</div>
+</div>
+<!-- Row 3: In Progress -->
+<div class="flex items-center py-3 border-b border-surface-variant hover:bg-surface-bright transition-colors">
+<div class="w-32 font-data-mono text-data-mono text-on-surface">PO-2023-1103</div>
+<div class="flex-1 relative h-6 bg-surface-container rounded ml-4 mr-4">
+<div class="absolute left-[30%] top-0 h-full bg-secondary rounded w-[30%]"></div>
+<div class="absolute left-[90%] -top-1">
+<span class="material-symbols-outlined text-on-tertiary-container text-[20px]" style="font-variation-settings: 'FILL' 1;">flag</span>
+</div>
+</div>
+</div>
+<!-- Row 4: In Progress -->
+<div class="flex items-center py-3 hover:bg-surface-bright transition-colors">
+<div class="w-32 font-data-mono text-data-mono text-on-surface">PO-2023-1102</div>
+<div class="flex-1 relative h-6 bg-surface-container rounded ml-4 mr-4">
+<div class="absolute left-[50%] top-0 h-full bg-secondary rounded w-[10%]"></div>
+<div class="absolute left-[85%] -top-1">
+<span class="material-symbols-outlined text-on-tertiary-container text-[20px]" style="font-variation-settings: 'FILL' 1;">flag</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- KPI Board Column -->
+<div class="lg:col-span-1">
+<div class="bg-white rounded border border-outline-variant h-full">
+<div class="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+<h3 class="font-headline-sm text-headline-sm text-primary">KPI Ranking</h3>
+<button class="text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant bg-surface">
+<th class="p-3 font-label-caps text-label-caps text-on-surface-variant w-1/2">Supplier</th>
+<th class="p-3 font-label-caps text-label-caps text-on-surface-variant text-right">Lead Time</th>
+<th class="p-3 font-label-caps text-label-caps text-on-surface-variant text-right">Fill Rate</th>
+</tr>
+</thead>
+<tbody>
+<!-- Vendor 1 -->
+<tr class="border-b border-surface-variant hover:bg-surface-container-lowest">
+<td class="p-3">
+<div class="font-body-md text-body-md text-on-surface font-semibold">Heineken Vietnam N.V</div>
+<div class="font-label-caps text-[10px] text-on-surface-variant mt-1">Error: 0.5%</div>
+</td>
+<td class="p-3 text-right">
+<span class="font-data-mono text-data-mono text-on-tertiary-container bg-tertiary-fixed px-2 py-1 rounded">3.5d</span>
+</td>
+<td class="p-3 text-right font-data-mono text-data-mono text-on-surface">98%</td>
+</tr>
+<!-- Vendor 2 (Warning) -->
+<tr class="border-b border-surface-variant bg-error-container bg-opacity-10 hover:bg-opacity-20">
+<td class="p-3">
+<div class="font-body-md text-body-md text-on-surface font-semibold flex items-center gap-1">
+                                            Coca-Cola
+                                            <span class="material-symbols-outlined text-[14px] text-error">warning</span>
+</div>
+<div class="font-label-caps text-[10px] text-error mt-1">Error: 2.1%</div>
+</td>
+<td class="p-3 text-right">
+<span class="font-data-mono text-data-mono text-on-error-container bg-error-container px-2 py-1 rounded">4.8d</span>
+</td>
+<td class="p-3 text-right font-data-mono text-data-mono text-on-surface">92%</td>
+</tr>
+<!-- Vendor 3 -->
+<tr class="border-b border-surface-variant hover:bg-surface-container-lowest">
+<td class="p-3">
+<div class="font-body-md text-body-md text-on-surface font-semibold">Suntory PepsiCo</div>
+<div class="font-label-caps text-[10px] text-on-surface-variant mt-1">Error: 1.2%</div>
+</td>
+<td class="p-3 text-right">
+<span class="font-data-mono text-data-mono text-on-surface px-2 py-1">4.0d</span>
+</td>
+<td class="p-3 text-right font-data-mono text-data-mono text-on-surface">95%</td>
+</tr>
+<!-- Vendor 4 -->
+<tr class="hover:bg-surface-container-lowest">
+<td class="p-3">
+<div class="font-body-md text-body-md text-on-surface font-semibold">Carlsberg Vietnam</div>
+<div class="font-label-caps text-[10px] text-on-surface-variant mt-1">Error: 0.8%</div>
+</td>
+<td class="p-3 text-right">
+<span class="font-data-mono text-data-mono text-on-surface px-2 py-1">4.2d</span>
+</td>
+<td class="p-3 text-right font-data-mono text-data-mono text-on-surface">96%</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

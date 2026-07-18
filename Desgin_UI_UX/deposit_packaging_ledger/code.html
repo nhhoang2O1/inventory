@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>WMS Admin - Deposit &amp; Packaging Ledger</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-primary-fixed": "#001b3c",
+                      "on-error": "#ffffff",
+                      "inverse-surface": "#2d3133",
+                      "tertiary-fixed": "#91f8b8",
+                      "on-tertiary-fixed": "#002110",
+                      "on-secondary": "#ffffff",
+                      "error-container": "#ffdad6",
+                      "secondary": "#1960a3",
+                      "secondary-fixed": "#d3e4ff",
+                      "surface-tint": "#455f88",
+                      "primary": "#002045",
+                      "outline": "#74777f",
+                      "surface-dim": "#d7dadc",
+                      "surface-container-low": "#f1f4f6",
+                      "surface": "#f7fafc",
+                      "on-tertiary": "#ffffff",
+                      "surface-variant": "#e0e3e5",
+                      "on-primary-container": "#86a0cd",
+                      "background": "#f7fafc",
+                      "tertiary-fixed-dim": "#74db9d",
+                      "secondary-container": "#7db6ff",
+                      "surface-container": "#ebeef0",
+                      "on-error-container": "#93000a",
+                      "tertiary": "#002713",
+                      "surface-container-lowest": "#ffffff",
+                      "primary-fixed-dim": "#adc7f7",
+                      "outline-variant": "#c4c6cf",
+                      "error": "#ba1a1a",
+                      "surface-bright": "#f7fafc",
+                      "on-tertiary-container": "#4bb278",
+                      "secondary-fixed-dim": "#a2c9ff",
+                      "on-surface-variant": "#43474e",
+                      "surface-container-high": "#e5e9eb",
+                      "on-tertiary-fixed-variant": "#00522f",
+                      "on-secondary-fixed-variant": "#004881",
+                      "on-primary-fixed-variant": "#2d476f",
+                      "on-background": "#181c1e",
+                      "inverse-primary": "#adc7f7",
+                      "surface-container-highest": "#e0e3e5",
+                      "on-secondary-fixed": "#001c38",
+                      "on-secondary-container": "#00477f",
+                      "on-primary": "#ffffff",
+                      "tertiary-container": "#003f23",
+                      "primary-container": "#1a365d",
+                      "inverse-on-surface": "#eef1f3",
+                      "on-surface": "#181c1e",
+                      "primary-fixed": "#d6e3ff"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.125rem",
+                      "lg": "0.25rem",
+                      "xl": "0.5rem",
+                      "full": "0.75rem"
+              },
+              "spacing": {
+                      "grid-gutter": "16px",
+                      "unit": "4px",
+                      "density-compact": "8px",
+                      "density-comfortable": "16px",
+                      "container-padding": "24px"
+              },
+              "fontFamily": {
+                      "label-caps": [
+                              "Inter"
+                      ],
+                      "body-lg": [
+                              "Inter"
+                      ],
+                      "headline-sm": [
+                              "Inter"
+                      ],
+                      "body-md": [
+                              "Inter"
+                      ],
+                      "display-lg": [
+                              "Inter"
+                      ],
+                      "headline-md": [
+                              "Inter"
+                      ],
+                      "data-mono": [
+                              "Inter"
+                      ]
+              },
+              "fontSize": {
+                      "label-caps": [
+                              "12px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "body-lg": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "headline-sm": [
+                              "20px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "body-md": [
+                              "14px",
+                              {
+                                      "lineHeight": "20px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "700"
+                              }
+                      ],
+                      "headline-md": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "600"
+                              }
+                      ],
+                      "data-mono": [
+                              "13px",
+                              {
+                                      "lineHeight": "18px",
+                                      "letterSpacing": "0.01em",
+                                      "fontWeight": "500"
+                              }
+                      ]
+              }
+            },
+          }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .filled-icon {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen font-body-md text-body-md overflow-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 w-[calc(100%-240px)] z-40 bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center h-16 px-6">
+<div class="flex items-center gap-6">
+<span class="font-headline-md text-headline-md font-bold text-primary">FMCG Warehouse</span>
+<div class="flex items-center gap-4 border-l border-outline-variant pl-4">
+<nav class="flex gap-4">
+<a class="text-on-surface-variant hover:bg-surface-container-low rounded-lg px-2 py-1 transition-opacity active:opacity-70" href="#">API: Healthy</a>
+<a class="text-on-surface-variant hover:bg-surface-container-low rounded-lg px-2 py-1 transition-opacity active:opacity-70" href="#">DB Sync: Live</a>
+</nav>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center justify-center p-2 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-opacity active:opacity-70">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</button>
+<button class="bg-primary text-on-primary px-4 py-2 rounded font-label-caps text-label-caps hover:opacity-90 transition-opacity">Warehouse Alpha</button>
+<button class="border border-outline text-primary px-4 py-2 rounded font-label-caps text-label-caps hover:bg-surface-container-low transition-colors">MFA Active</button>
+<div class="flex gap-2">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-opacity active:opacity-70">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-lg transition-opacity active:opacity-70">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+</div>
+<div class="h-8 w-8 rounded-full bg-surface-container overflow-hidden border border-outline-variant ml-2">
+<img class="w-full h-full object-cover" data-alt="FMCG Brand Logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCg6NcPZU6kITG0inl-JfsqZvghFqsXod0ZzvqN_jFIVYZ5lkJn044-qqusvL9TH2ak4WnAAGd-LI4yMfSEhmkbXmju2KKShWTp3q0gAlWE1pMZbls9Omp0KKkggnS5KHeUZP9PeUIydmJuk8hU5IvjYpy4B5xMlgVcXyw9jQmcopaxGZNvt1EXEFAz3VrITv1C7F3M-zYavPJr_zILH9sC9wXQi3TBL1sRymfGzXrDWQwM2YFLjDIv"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-[240px] z-50 bg-surface border-r border-outline-variant flex flex-col overflow-y-auto">
+<div class="p-6 border-b border-outline-variant flex items-center gap-3">
+<div class="h-10 w-10 rounded-lg bg-surface-container flex-shrink-0 overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover" data-alt="User Profile Avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAYaHIOAmT1qQ2-mOxzpntYgcB0ASdIudpYXOk9VGmjgNb6rZH7KTWfHRaAFtkSbslNPDdecTgk0Oq8IVz4Vn4ZKtDWlZUTjj98NiIDZfZWBfQLm2E1ftmON0ax8x9Xbs4eUfRgvu7rhRxXkjKd2iHa4gPnlvbpii6bV7cz6yFEwa8i8lfu3MgDzLRbKaYhu_3X3ts7b5LQ5h84HB1zLrGhYBwgy0uJbi4LhiGqHJJySDds4UndSvJY"/>
+</div>
+<div class="overflow-hidden">
+<h2 class="font-headline-sm text-headline-sm font-bold text-on-surface truncate">WMS Admin</h2>
+<p class="font-body-md text-body-md text-on-surface-variant truncate">Primary Depot</p>
+</div>
+</div>
+<div class="p-4">
+<button class="w-full bg-primary text-on-primary py-2 px-4 rounded font-label-caps text-label-caps hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[18px]">add</span>
+                New Entry
+            </button>
+</div>
+<nav class="flex-1 py-2 px-2 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-caps text-label-caps">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="login">login</span>
+<span class="font-label-caps text-label-caps">Inbound</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="conveyor_belt">conveyor_belt</span>
+<span class="font-label-caps text-label-caps">Outbound</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span class="font-label-caps text-label-caps">Inventory</span>
+</a>
+<!-- Active State Navigation -->
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container font-bold border-l-4 border-secondary transition-all duration-200 active:scale-95 rounded-r-lg" href="#">
+<span class="material-symbols-outlined filled-icon" data-icon="analytics">analytics</span>
+<span class="font-label-caps text-label-caps">Financial Reports</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="rule">rule</span>
+<span class="font-label-caps text-label-caps">Approval Center</span>
+</a>
+</nav>
+<div class="p-2 border-t border-outline-variant flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-all duration-200 active:scale-95 rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span class="font-label-caps text-label-caps">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="ml-[240px] pt-16 h-screen overflow-y-auto bg-surface-container-low p-container-padding">
+<div class="max-w-7xl mx-auto flex flex-col gap-grid-gutter">
+<!-- Page Header -->
+<div class="flex justify-between items-end mb-4">
+<div>
+<h1 class="font-display-lg text-display-lg font-bold text-on-surface mb-2">Deposit &amp; Packaging Ledger</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Reconcile packaging debt and deposits by distribution partner.</p>
+</div>
+<div class="flex gap-2">
+<button class="bg-surface text-on-surface border border-outline px-4 py-2 rounded flex items-center gap-2 hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span class="font-label-caps text-label-caps">Export Excel</span>
+</button>
+<button class="bg-primary text-on-primary px-4 py-2 rounded flex items-center gap-2 hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined text-[18px]">receipt_long</span>
+<span class="font-label-caps text-label-caps">Generate Statement</span>
+</button>
+</div>
+</div>
+<!-- Bento Grid Stats -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-grid-gutter mb-6">
+<div class="bg-surface border border-outline-variant p-4 rounded-lg flex flex-col">
+<span class="font-label-caps text-label-caps text-on-surface-variant mb-1">Total Deposits Held</span>
+<span class="font-headline-md text-headline-md font-bold text-on-surface mb-2">4,250,000,000 ₫</span>
+<div class="flex items-center text-on-tertiary-container gap-1 mt-auto">
+<span class="material-symbols-outlined text-[16px]">trending_up</span>
+<span class="font-data-mono text-data-mono">+2.4% vs last month</span>
+</div>
+</div>
+<div class="bg-surface border border-outline-variant p-4 rounded-lg flex flex-col">
+<span class="font-label-caps text-label-caps text-on-surface-variant mb-1">Total Crate Debt</span>
+<span class="font-headline-md text-headline-md font-bold text-on-surface mb-2">12,450 <span class="text-body-md font-normal text-on-surface-variant">crates</span></span>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden mt-auto">
+<div class="bg-secondary h-full rounded-full" style="width: 65%"></div>
+</div>
+</div>
+<div class="bg-surface border border-outline-variant p-4 rounded-lg flex flex-col">
+<span class="font-label-caps text-label-caps text-on-surface-variant mb-1">Total Bottle Debt</span>
+<span class="font-headline-md text-headline-md font-bold text-on-surface mb-2">145,200 <span class="text-body-md font-normal text-on-surface-variant">bottles</span></span>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden mt-auto">
+<div class="bg-surface-tint h-full rounded-full" style="width: 42%"></div>
+</div>
+</div>
+<div class="bg-surface border border-outline-variant p-4 rounded-lg flex flex-col">
+<span class="font-label-caps text-label-caps text-error mb-1">Over Limit Pallets</span>
+<span class="font-headline-md text-headline-md font-bold text-error mb-2">342 <span class="text-body-md font-normal text-on-surface-variant">pallets</span></span>
+<div class="flex items-center text-error gap-1 mt-auto">
+<span class="material-symbols-outlined text-[16px]">warning</span>
+<span class="font-data-mono text-data-mono">Requires action</span>
+</div>
+</div>
+</div>
+<!-- Main Data Workspace -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-grid-gutter">
+<!-- Ledger Table (Takes up 2/3 width) -->
+<div class="lg:col-span-2 bg-surface border border-outline-variant rounded-lg flex flex-col h-[600px] overflow-hidden">
+<div class="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest">
+<h2 class="font-headline-sm text-headline-sm font-semibold text-on-surface">Partner Ledger</h2>
+<div class="flex gap-2">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[18px]">search</span>
+<input class="pl-9 pr-4 py-1.5 border border-outline-variant rounded font-body-md text-body-md bg-surface w-48 focus:border-secondary focus:ring-1 focus:ring-secondary outline-none transition-all" placeholder="Search Partners..." type="text"/>
+</div>
+<button class="p-1.5 border border-outline-variant rounded text-on-surface-variant hover:bg-surface-container-low">
+<span class="material-symbols-outlined text-[20px]">filter_list</span>
+</button>
+</div>
+</div>
+<div class="flex-1 overflow-auto">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-secondary"></div><table class="w-full text-left border-collapse">
+<thead class="sticky top-0 bg-surface z-10 shadow-[0_1px_0_var(--tw-colors-outline-variant)]">
+<tr>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-on-surface-variant w-[250px]">Partner</th>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-on-surface-variant text-right">Crates</th>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-on-surface-variant text-right">Bottles</th>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-on-surface-variant text-right">Pallet</th>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-on-surface-variant text-right">Deposit Amount (VND)</th>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-on-surface-variant text-center">Status</th>
+</tr>
+</thead>
+<tbody class="font-data-mono text-data-mono">
+<!-- Row 1 -->
+<tr class="border-b border-outline-variant hover:bg-surface-container-low cursor-pointer bg-surface transition-colors">
+<td class="p-density-compact px-4">
+<div class="font-medium text-on-surface">Hoang Long Distributor (Hanoi)</div>
+<div class="text-on-surface-variant text-[11px]">ID: D-10024</div>
+</td>
+<td class="p-density-compact px-4 text-right">1,250</td>
+<td class="p-density-compact px-4 text-right">14,400</td>
+<td class="p-density-compact px-4 text-right">45</td>
+<td class="p-density-compact px-4 text-right font-medium">350,000,000</td>
+<td class="p-density-compact px-4 text-center">
+<span class="inline-block px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed text-[10px] font-bold uppercase tracking-wider">Balanced</span>
+</td>
+</tr>
+<!-- Row 2 (Active/Selected) -->
+<tr class="border-b border-outline-variant bg-secondary-fixed/30 cursor-pointer transition-colors relative">
+<td class="p-density-compact px-4 pl-5">
+<div class="font-medium text-on-surface">Minh Tri Agency (Da Nang)</div>
+<div class="text-on-surface-variant text-[11px]">ID: D-10089</div>
+</td>
+<td class="p-density-compact px-4 text-right">890</td>
+<td class="p-density-compact px-4 text-right">10,200</td>
+<td class="p-density-compact px-4 text-right text-error font-medium">120</td>
+<td class="p-density-compact px-4 text-right font-medium">180,000,000</td>
+<td class="p-density-compact px-4 text-center">
+<span class="inline-block px-2 py-0.5 rounded-full bg-error-container text-on-error-container text-[10px] font-bold uppercase tracking-wider">Overdue Debt</span>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="border-b border-outline-variant hover:bg-surface-container-low cursor-pointer bg-surface transition-colors">
+<td class="p-density-compact px-4">
+<div class="font-medium text-on-surface">VinMart+ Chain (Region 1)</div>
+<div class="text-on-surface-variant text-[11px]">ID: R-20011</div>
+</td>
+<td class="p-density-compact px-4 text-right">450</td>
+<td class="p-density-compact px-4 text-right">5,000</td>
+<td class="p-density-compact px-4 text-right">12</td>
+<td class="p-density-compact px-4 text-right font-medium">120,000,000</td>
+<td class="p-density-compact px-4 text-center">
+<span class="inline-block px-2 py-0.5 rounded-full bg-tertiary-fixed text-on-tertiary-fixed text-[10px] font-bold uppercase tracking-wider">Balanced</span>
+</td>
+</tr>
+<!-- Row 4 -->
+<tr class="border-b border-outline-variant hover:bg-surface-container-low cursor-pointer bg-surface transition-colors">
+<td class="p-density-compact px-4">
+<div class="font-medium text-on-surface">Phuong Nam Distributor (HCM)</div>
+<div class="text-on-surface-variant text-[11px]">ID: D-10055</div>
+</td>
+<td class="p-density-compact px-4 text-right">2,100</td>
+<td class="p-density-compact px-4 text-right">24,000</td>
+<td class="p-density-compact px-4 text-right">80</td>
+<td class="p-density-compact px-4 text-right font-medium">550,000,000</td>
+<td class="p-density-compact px-4 text-center">
+<span class="inline-block px-2 py-0.5 rounded-full bg-surface-container-high text-on-surface-variant text-[10px] font-bold uppercase tracking-wider">Needs Top-up</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Detail Panel (Takes up 1/3 width) -->
+<div class="bg-surface border border-outline-variant rounded-lg flex flex-col h-[600px] overflow-hidden shadow-sm relative">
+<!-- Glassmorphism header effect -->
+<div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-secondary-fixed/50 to-transparent pointer-events-none z-0"></div>
+<div class="p-4 border-b border-outline-variant relative z-10 flex justify-between items-start">
+<div>
+<h3 class="font-headline-sm text-headline-sm font-semibold text-on-surface">Minh Tri Agency</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Packaging transaction details</p>
+</div>
+<button class="text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</div>
+<div class="p-4 bg-surface-container-lowest border-b border-outline-variant relative z-10">
+<div class="grid grid-cols-2 gap-4">
+<div>
+<span class="block font-label-caps text-label-caps text-on-surface-variant mb-1">Required Deposit</span>
+<span class="block font-data-mono text-data-mono font-medium">200,000,000 ₫</span>
+</div>
+<div>
+<span class="block font-label-caps text-label-caps text-on-surface-variant mb-1">Actual Deposit Held</span>
+<span class="block font-data-mono text-data-mono font-medium text-error">180,000,000 ₫</span>
+</div>
+</div>
+<div class="mt-4 pt-4 border-t border-outline-variant border-dashed">
+<button class="w-full bg-surface border border-outline text-on-surface py-1.5 rounded font-label-caps text-label-caps hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-[16px]">add_task</span>
+                                Request top-up
+                            </button>
+</div>
+</div>
+<div class="flex-1 overflow-y-auto p-4 bg-surface">
+<h4 class="font-label-caps text-label-caps text-on-surface-variant mb-4">Transaction history</h4>
+<div class="relative border-l border-outline-variant ml-2 pl-4 space-y-4">
+<!-- Timeline Item 1 -->
+<div class="relative">
+<div class="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-primary border-2 border-surface"></div>
+<div class="flex justify-between items-start mb-1">
+<span class="font-data-mono text-[12px] font-medium text-on-surface">PO-2023-1102</span>
+<span class="font-data-mono text-[11px] text-on-surface-variant">Today, 08:30</span>
+</div>
+<p class="font-body-md text-[13px] text-on-surface-variant">Outbound: <span class="text-on-surface font-medium">+150 crates, +10 pallets</span></p>
+</div>
+<!-- Timeline Item 2 -->
+<div class="relative">
+<div class="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-tertiary-fixed-dim border-2 border-surface"></div>
+<div class="flex justify-between items-start mb-1">
+<span class="font-data-mono text-[12px] font-medium text-on-surface">RET-2023-094</span>
+<span class="font-data-mono text-[11px] text-on-surface-variant">Yesterday, 14:15</span>
+</div>
+<p class="font-body-md text-[13px] text-on-surface-variant">Return: <span class="text-tertiary-container font-medium">-120 crates, -5 pallets</span></p>
+</div>
+<!-- Timeline Item 3 -->
+<div class="relative">
+<div class="absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full bg-outline border-2 border-surface"></div>
+<div class="flex justify-between items-start mb-1">
+<span class="font-data-mono text-[12px] font-medium text-on-surface">DEP-TRX-882</span>
+<span class="font-data-mono text-[11px] text-on-surface-variant">12/10/2023</span>
+</div>
+<p class="font-body-md text-[13px] text-on-surface-variant">Damage deduction: <span class="text-error font-medium">-1,500,000 ₫</span></p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>
