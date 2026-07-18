@@ -1,0 +1,62 @@
+openapi: 3.1.0
+info: { title: WMS Inventory Core API, version: 0.4.0 }
+paths:
+  /api/v1/inventory/balances:
+    get:
+      operationId: listInventoryBalances
+      responses: { '200': { description: On-hand by SKU, batch, location and status } }
+  /api/v1/inventory/reservations:
+    get:
+      operationId: listInventoryReservations
+      responses: { '200': { description: Reservation lifecycle query } }
+    post:
+      operationId: reserveInventory
+      parameters: [ { name: Idempotency-Key, in: header, required: true, schema: { type: string } } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReservationInput' } } } }
+      responses: { '201': { description: Reserved or idempotent replay }, '409': { description: INVENTORY_ATP_INSUFFICIENT } }
+  /api/v1/inventory/in-transit:
+    get:
+      operationId: listInTransitInventory
+      responses: { '200': { description: Enterprise-owned IN_TRANSIT quantities } }
+  /api/v1/inventory/reconciliation:
+    get:
+      operationId: reconcileLedgerAndBalance
+      responses: { '200': { description: Ledger-derived quantity, balance and variance } }
+  /api/v1/inventory/atp:
+    get:
+      operationId: getAtp
+      parameters:
+        - { name: skuId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Canonical sellable on-hand, active reservation and ATP snapshot } }
+  /api/v1/inventory/reservations/{reservationId}/release:
+    post:
+      operationId: releaseReservation
+      parameters:
+        - { name: reservationId, in: path, required: true, schema: { type: string, format: uuid } }
+      responses: { '201': { description: Idempotently released; no inventory movement created }, '403': { description: Permission or warehouse scope denied } }
+  /api/v1/inventory/postings:
+    post:
+      operationId: postInventoryMovement
+      parameters: [ { name: Idempotency-Key, in: header, required: true, schema: { type: string } } ]
+      responses: { '201': { description: Atomic posted movement or idempotent replay }, '409': { description: On-hand, version or idempotency conflict } }
+  /api/v1/inventory/postings/{movementId}/reverse:
+    post:
+      operationId: reverseInventoryMovement
+      parameters:
+        - { name: movementId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      responses: { '201': { description: New append-only reversal movement }, '409': { description: Movement already reversed or insufficient balance } }
+components:
+  schemas:
+    ReservationInput:
+      type: object
+      additionalProperties: false
+      required: [demandType, demandId, skuId, warehouseId, quantity]
+      properties:
+        demandType: { type: string }
+        demandId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        warehouseId: { type: string, format: uuid }
+        quantity: { type: integer, minimum: 1, description: Whole cases/crates/kegs }
+        expiresAt: { type: string, format: date-time }

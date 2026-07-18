@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import test from 'node:test';
+const controller=await readFile(new URL('../apps/api/src/modules/inventory/public/inventory.controller.ts',import.meta.url),'utf8');
+const service=await readFile(new URL('../apps/api/src/modules/inventory/public/inventory-application.service.ts',import.meta.url),'utf8');
+const lifecycle=await readFile(new URL('../packages/database/migrations/0007_phase4_reservation_lifecycle.sql',import.meta.url),'utf8');
+test('API exposes ATP reservation release and posting',()=>{for(const route of ["@Get('atp')","@Post('reservations')","@Post('reservations/:id/release')","@Post('postings')"])assert.match(controller,new RegExp(route.replace(/[()']/g,'\\$&')));});
+test('multi-line posting uses one database transaction',()=>{assert.match(service,/this\.db\.transaction/);assert.match(service,/for\(const \[index,line\] of lines\.entries\(\)\)/);});
+test('issue fulfillment runs with posting client transaction',()=>assert.match(service,/client\.query\('SELECT inventory\.fulfill_reservation/));
+test('expiry and fulfillment never create movement',()=>{assert.match(lifecycle,/expire_reservations/);assert.match(lifecycle,/fulfill_reservation/);assert.doesNotMatch(lifecycle,/inventory_movement_ledger/);});
+test('reversal endpoint creates a referenced REVERSAL movement',()=>{assert.match(controller,/postings\/:movementId\/reverse/);assert.match(service,/'REVERSAL','REVERSAL'/);assert.match(service,/reversalOf:movementId/);});
+test('query API exposes balance reservation in-transit and reconciliation',()=>{for(const route of ['balances','reservations','in-transit','reconciliation'])assert.match(controller,new RegExp(`@Get\\('${route}'\\)`));});
+test('posting authorizes every source and destination warehouse',()=>assert.match(service,/for\(const id of warehouseIds\)await this\.authorize/));
+test('fulfillment is performed before source balance debit',()=>{const fulfill=service.indexOf('fulfill_reservation');const post=service.indexOf('const result=await this.postLine',fulfill);assert.ok(fulfill>0&&post>fulfill);});

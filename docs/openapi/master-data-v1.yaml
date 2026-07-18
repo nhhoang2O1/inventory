@@ -1,0 +1,54 @@
+openapi: 3.1.0
+info: { title: WMS Master Data API, version: 0.3.0 }
+paths:
+  /api/v1/products:
+    get:
+      operationId: listProducts
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+      responses: { '200': { description: Paginated products } }
+    post:
+      operationId: createProduct
+      security: [ { bearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ProductInput' } } } }
+      responses: { '201': { description: Product created }, '403': { description: Permission or warehouse scope denied } }
+  /api/v1/skus:
+    post:
+      operationId: createWholeCaseSku
+      security: [ { bearerAuth: [] } ]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SkuInput' } } } }
+      responses: { '201': { description: SKU created }, '409': { description: SKU or current barcode conflict } }
+  /api/v1/warehouses/{warehouseId}/locations:
+    get:
+      operationId: listLocations
+      parameters: [ { name: warehouseId, in: path, required: true, schema: { type: string, format: uuid } } ]
+      responses: { '200': { description: Warehouse locations }, '403': { description: Outside warehouse scope } }
+  /api/v1/master-data/imports:
+    post:
+      operationId: createMasterDataImport
+      parameters: [ { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 16 } } ]
+      responses: { '202': { description: Validation/import job accepted }, '422': { description: Row validation report } }
+  /api/v1/master-data/exports:
+    post:
+      operationId: createMasterDataExport
+      security: [ { bearerAuth: [] } ]
+      responses: { '202': { description: Permission-scoped asynchronous CSV/XLSX export accepted }, '403': { description: Permission or warehouse scope denied } }
+components:
+  securitySchemes: { bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT } }
+  schemas:
+    ProductInput:
+      type: object
+      additionalProperties: false
+      required: [code, name]
+      properties: { code: { type: string }, name: { type: string }, brandId: { type: string, format: uuid }, categoryId: { type: string, format: uuid } }
+    SkuInput:
+      type: object
+      additionalProperties: false
+      required: [productId, code, name, baseUom]
+      properties:
+        productId: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        baseUom: { type: string, enum: [CASE, CRATE, KEG] }
+        unitsPerCase: { type: integer, minimum: 1 }
+        barcode: { type: string }

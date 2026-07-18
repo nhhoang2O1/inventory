@@ -55,3 +55,89 @@ export function wholeCaseQuantity(value: number): WholeCaseQuantity {
   }
   return value as WholeCaseQuantity;
 }
+
+export type AccessDenialCode =
+  | 'ACTOR_INACTIVE'
+  | 'PERMISSION_DENIED'
+  | 'WAREHOUSE_SCOPE_DENIED';
+
+export interface ActorAccess {
+  userId: string;
+  effectiveRoleId: string;
+  active: boolean;
+  permissions: readonly string[];
+  warehouseIds: readonly string[];
+}
+
+export type AccessDecision =
+  | { allowed: true }
+  | { allowed: false; code: AccessDenialCode };
+
+export function authorizeWarehouseAction(
+  actor: ActorAccess,
+  requiredPermission: string,
+  warehouseId: string
+): AccessDecision {
+  if (!actor.active) return { allowed: false, code: 'ACTOR_INACTIVE' };
+  if (!actor.permissions.includes(requiredPermission)) {
+    return { allowed: false, code: 'PERMISSION_DENIED' };
+  }
+  if (!actor.warehouseIds.includes(warehouseId)) {
+    return { allowed: false, code: 'WAREHOUSE_SCOPE_DENIED' };
+  }
+  return { allowed: true };
+}
+
+export type ApprovalDenialCode =
+  | 'REQUEST_NOT_PENDING'
+  | 'FOUR_EYES_VIOLATION'
+  | 'APPROVAL_LEVEL_MISMATCH'
+  | 'APPROVAL_PERMISSION_DENIED';
+
+export interface ApprovalCheck {
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  creatorId: string;
+  actorId: string;
+  fourEyesRequired: boolean;
+  currentLevel: number;
+  decisionLevel: number;
+  requiredPermission: string;
+  actorPermissions: readonly string[];
+}
+
+export type ApprovalDecision =
+  | { allowed: true }
+  | { allowed: false; code: ApprovalDenialCode };
+
+export function canDecideApproval(input: ApprovalCheck): ApprovalDecision {
+  if (input.status !== 'PENDING') return { allowed: false, code: 'REQUEST_NOT_PENDING' };
+  if (input.fourEyesRequired && input.creatorId === input.actorId) {
+    return { allowed: false, code: 'FOUR_EYES_VIOLATION' };
+  }
+  if (input.currentLevel !== input.decisionLevel) {
+    return { allowed: false, code: 'APPROVAL_LEVEL_MISMATCH' };
+  }
+  if (!input.actorPermissions.includes(input.requiredPermission)) {
+    return { allowed: false, code: 'APPROVAL_PERMISSION_DENIED' };
+  }
+  return { allowed: true };
+}
+
+export type StockStatus = 'AVAILABLE' | 'BLOCKED' | 'QUARANTINED' | 'DAMAGED' | 'EXPIRED' | 'RECALLED' | 'IN_TRANSIT';
+export interface AtpSnapshot { sellableOnHand: number; activeReservation: number; atp: number }
+export function calculateAtp(sellableOnHand: number, activeReservation: number): AtpSnapshot {
+  if (!Number.isSafeInteger(sellableOnHand) || !Number.isSafeInteger(activeReservation) || sellableOnHand < 0 || activeReservation < 0 || activeReservation > sellableOnHand) {
+    throw new Error('Invalid whole-case ATP inputs.');
+  }
+  return { sellableOnHand, activeReservation, atp: sellableOnHand - activeReservation };
+}
+
+export interface InventoryPostingLine {
+  skuId: string; batchId: string; quantity: WholeCaseQuantity;
+  source?: { warehouseId: string; locationId: string; status: StockStatus };
+  destination?: { warehouseId: string; locationId: string; status: StockStatus };
+}
+export interface InventoryPostingCommand {
+  documentType: string; documentId: string; idempotencyKey: string; actorId: string;
+  correlationId: string; reason?: string; lines: readonly InventoryPostingLine[];
+}
