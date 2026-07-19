@@ -5,8 +5,17 @@ import { ApprovalModule } from './modules/approval/public/approval.module.js';
 import { InventoryModule } from './modules/inventory/public/inventory.module.js';
 import { PurchasingModule } from './modules/purchasing/public/purchasing.module.js';
 import { ReceivingModule } from './modules/receiving/public/receiving.module.js';
+import { OutboundModule } from './modules/outbound/public/outbound.module.js';
 
 @Module({
-  imports: [HealthModule, IamModule, ApprovalModule, InventoryModule, PurchasingModule, ReceivingModule]
+  imports: [
+    HealthModule,
+    IamModule,
+    ApprovalModule,
+    InventoryModule,
+    PurchasingModule,
+    ReceivingModule,
+    OutboundModule
+  ]
 })
 export class AppModule {}

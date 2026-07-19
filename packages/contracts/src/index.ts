@@ -8,6 +8,10 @@ export type ErrorCode =
   | 'IDEMPOTENCY_CONFLICT'
   | 'WHOLESALE_QUANTITY_REQUIRED'
   | 'MINIMUM_QUANTITY_NOT_MET'
+  | 'INVENTORY_ATP_INSUFFICIENT'
+  | 'FEFO_OVERRIDE_REQUIRED'
+  | 'MRSL_NOT_MET'
+  | 'PICK_CONFLICT'
   | 'INTERNAL_ERROR';
 
 export interface ProblemDetails {
@@ -140,4 +144,32 @@ export interface InventoryPostingLine {
 export interface InventoryPostingCommand {
   documentType: string; documentId: string; idempotencyKey: string; actorId: string;
   correlationId: string; reason?: string; lines: readonly InventoryPostingLine[];
+}
+
+export type IssueRequestStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'ALLOCATED'
+  | 'PICKING'
+  | 'POSTED'
+  | 'CANCELLED';
+
+export interface FefoAllocationExplanation {
+  batchId: string;
+  locationId: string;
+  expirationDate: string;
+  firstReceivedDate?: string;
+  quantity: WholeCaseQuantity;
+  fefoRank: number;
+  overrideUsed: boolean;
+  overrideReason?: string;
+}
+
+export interface GoodsIssuePostingResult {
+  id: string;
+  goodsIssueCode: string;
+  status: 'POSTED';
+  movementIds: readonly string[];
+  replayed: boolean;
 }
