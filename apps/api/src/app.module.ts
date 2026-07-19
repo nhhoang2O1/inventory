@@ -11,6 +11,9 @@ import { StocktakeModule } from './modules/stocktake/public/stocktake.module.js'
 import { AdjustmentModule } from './modules/adjustment/public/adjustment.module.js';
 import { QualityModule } from './modules/quality/public/quality.module.js';
 import { RecallModule } from './modules/recall/public/recall.module.js';
+import { PlanningModule } from './modules/planning/public/planning.module.js';
+import { ReportingModule } from './modules/reporting/public/reporting.module.js';
+import { IntegrationModule } from './modules/integration/public/integration.module.js';
 
 @Module({
   imports: [
@@ -25,7 +28,10 @@ import { RecallModule } from './modules/recall/public/recall.module.js';
     StocktakeModule,
     AdjustmentModule,
     QualityModule,
-    RecallModule
+    RecallModule,
+    PlanningModule,
+    ReportingModule,
+    IntegrationModule
   ]
 })
 export class AppModule {}

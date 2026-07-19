@@ -137,9 +137,9 @@ export function App() {
   }
 
   async function callPhase7(method: 'GET' | 'POST'): Promise<void> {
-    if (!['/transfers', '/stocktakes', '/reversals', '/quality', '/returns', '/recalls']
+    if (!['/transfers', '/stocktakes', '/reversals', '/quality', '/returns', '/recalls', '/planning', '/reports', '/integrations']
       .some((prefix) => phase7Path.startsWith(prefix))) {
-      throw new Error('Endpoint phải thuộc Phase 7 hoặc Phase 8.');
+      throw new Error('Endpoint phải thuộc Phase 7, Phase 8 hoặc Phase 9.');
     }
     let body: JsonRecord | undefined;
     if (method === 'POST') {
@@ -217,8 +217,8 @@ export function App() {
 
       <section className="panel phase7-console" aria-labelledby="phase7-title">
         <div>
-          <p className="step">PHASE 7–8 · OPERATIONS, QUALITY & RECALL</p>
-          <h2 id="phase7-title">Bảng điều khiển nghiệp vụ Phase 7–8</h2>
+          <p className="step">PHASE 7–9 · OPERATIONS, QUALITY, PLANNING & REPORTING</p>
+          <h2 id="phase7-title">Bảng điều khiển nghiệp vụ Phase 7–9</h2>
           <p>Dùng Actor ID ở trên. POST tự tạo Idempotency-Key và Correlation ID mới.</p>
         </div>
         <label>Endpoint
@@ -236,6 +236,8 @@ export function App() {
           <code>/stocktakes</code> → start → counts → complete-round → request-approval → approve → post-adjustment;{' '}
           <code>/reversals</code> → submit → approve → post.
           {' '}Phase 8: <code>/quality/cases</code>, <code>/quality/expiry-runs</code>, <code>/returns</code> và <code>/recalls</code>.
+          {' '}Phase 9: <code>/planning/runs</code>, <code>/reports/dashboard</code>, <code>/reports/supplier-kpi</code>
+          {' '}và <code>/integrations/reconciliation</code>.
         </p>
       </section>
 

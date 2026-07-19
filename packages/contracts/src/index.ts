@@ -24,6 +24,10 @@ export type ErrorCode =
   | 'RECALL_STATE_CONFLICT'
   | 'RECALL_ACTIVE_BATCH_BLOCKED'
   | 'RECALL_UNSCOPED_STOCK'
+  | 'PLANNING_POLICY_OVERLAP'
+  | 'PLANNING_STATE_CONFLICT'
+  | 'INTEGRATION_STATE_CONFLICT'
+  | 'INTEGRATION_DELIVERY_FAILED'
   | 'INTERNAL_ERROR';
 
 export interface ProblemDetails {
@@ -248,4 +252,36 @@ export interface RecallContainmentResult {
   qualityCaseIds: readonly string[];
   movementIds: readonly string[];
   replayed: boolean;
+}
+
+export type DraftPurchaseRequestStatus = 'DRAFT' | 'SUBMITTED' | 'CANCELLED' | 'CONVERTED';
+export interface ReplenishmentResult {
+  skuId: string;
+  warehouseId: string;
+  atp: number;
+  reliableInbound: number;
+  averageDailySales: number;
+  leadTimeDemand: number;
+  safetyStockQuantity: number;
+  reorderPoint: number;
+  suggestedQuantity: number;
+  orderMultiple: number;
+}
+
+export interface SupplierKpiResult {
+  otdPercent: number;
+  averageFirstReceiptLeadTimeDays: number;
+  averageCompleteReceiptLeadTimeDays: number;
+  fillRatePercent: number;
+  overReceiptQuantity: number;
+  damageRatePercent: number;
+  returnRatePercent: number;
+}
+
+export type IntegrationDeliveryStatus = 'PENDING' | 'PROCESSING' | 'PUBLISHED' | 'FAILED' | 'DEAD_LETTER';
+export interface IntegrationReconciliation {
+  generatedAt: string;
+  outbox: Readonly<Record<string, number>>;
+  deliveries: Readonly<Record<string, { count: number; maximumAttemptsObserved: number }>>;
+  staleProcessing: { events: number; deliveries: number };
 }
