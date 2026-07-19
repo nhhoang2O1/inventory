@@ -17,6 +17,13 @@ export type ErrorCode =
   | 'STOCKTAKE_SNAPSHOT_STALE'
   | 'INVENTORY_LOCATION_STOCKTAKE_LOCKED'
   | 'REVERSAL_STATE_CONFLICT'
+  | 'QUALITY_STATE_CONFLICT'
+  | 'QUALITY_SOURCE_CHANGED'
+  | 'QUALITY_HELD_STOCK_INSUFFICIENT'
+  | 'RETURN_STATE_CONFLICT'
+  | 'RECALL_STATE_CONFLICT'
+  | 'RECALL_ACTIVE_BATCH_BLOCKED'
+  | 'RECALL_UNSCOPED_STOCK'
   | 'INTERNAL_ERROR';
 
 export interface ProblemDetails {
@@ -219,6 +226,26 @@ export interface StocktakePostingResult {
 export interface ReversalPostingResult {
   id: string;
   status: 'POSTED';
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export type QualityCaseStatus = 'DRAFT' | 'CONTAINED' | 'PENDING_DISPOSITION' | 'CLOSED' | 'CANCELLED';
+export type QualityDispositionStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'POSTED';
+export type CustomerReturnStatus = 'DRAFT' | 'APPROVED' | 'POSTED' | 'CLOSED' | 'CANCELLED';
+export type RecallStatus = 'DRAFT' | 'APPROVED' | 'CONTAINED' | 'CLOSED' | 'CANCELLED';
+
+export interface QualityPostingResult {
+  id: string;
+  status: 'CONTAINED' | 'POSTED';
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export interface RecallContainmentResult {
+  id: string;
+  status: 'CONTAINED';
+  qualityCaseIds: readonly string[];
   movementIds: readonly string[];
   replayed: boolean;
 }

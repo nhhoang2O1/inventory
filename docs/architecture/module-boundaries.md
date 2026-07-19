@@ -10,7 +10,7 @@
 | Outbound | issue/pick/FEFO workflow | issue request, pick task, goods issue | Own ATP formula |
 | Transfer | location/warehouse transfer, receipt and discrepancy workflow | transfer, line, receipt, discrepancy | Direct balance write; own ATP formula |
 | Stocktake/Adjustment | snapshot, blind count, recount and adjustment workflow | stocktake session, snapshot, count, adjustment, reversal request | Direct balance/ledger write; mutation of original movement |
-| Quality/Recall | case, disposition, containment | quality case, return, recall | Direct balance write |
+| Quality/Recall | hold, disposition, return, expiry, recall containment and traceability | quality case, return, expiry run, recall | Direct balance/ledger write; independent ATP formula |
 | Planning/Reporting | queries, draft proposal | ROP policy, read model, export job | Source transaction update |
 | Integration/Audit | publish/reconcile/audit append | outbox, integration state, audit | Business decision ownership |
 

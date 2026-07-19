@@ -9,6 +9,8 @@ import { OutboundModule } from './modules/outbound/public/outbound.module.js';
 import { TransferModule } from './modules/transfer/public/transfer.module.js';
 import { StocktakeModule } from './modules/stocktake/public/stocktake.module.js';
 import { AdjustmentModule } from './modules/adjustment/public/adjustment.module.js';
+import { QualityModule } from './modules/quality/public/quality.module.js';
+import { RecallModule } from './modules/recall/public/recall.module.js';
 
 @Module({
   imports: [
@@ -21,7 +23,9 @@ import { AdjustmentModule } from './modules/adjustment/public/adjustment.module.
     OutboundModule,
     TransferModule,
     StocktakeModule,
-    AdjustmentModule
+    AdjustmentModule,
+    QualityModule,
+    RecallModule
   ]
 })
 export class AppModule {}

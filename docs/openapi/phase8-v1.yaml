@@ -1,0 +1,118 @@
+openapi: 3.1.0
+info:
+  title: WMS Phase 8 Quality, Return and Recall API
+  version: 0.8.0
+paths:
+  /api/v1/quality/cases:
+    post:
+      operationId: createQualityCase
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateQualityCase' } } } }
+      responses: { '201': { description: Draft warehouse-scoped quality case }, '409': { description: Balance, code or idempotency conflict } }
+  /api/v1/quality/cases/{id}:
+    get:
+      operationId: getQualityCase
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: Quality case with held lines and disposition } }
+  /api/v1/quality/cases/{id}/contain:
+    post:
+      operationId: containQualityCase
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/Id' }]
+      requestBody: { $ref: '#/components/requestBodies/VersionCommand' }
+      responses: { '201': { description: Affected stock moved into controlled status } }
+  /api/v1/quality/cases/{id}/dispositions:
+    post:
+      operationId: requestQualityDisposition
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateDisposition' } } } }
+      responses: { '201': { description: Full-scope disposition submitted without changing inventory } }
+  /api/v1/quality/cases/{id}/cancel:
+    post: { operationId: cancelQualityCase, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/ReasonVersionCommand' }, responses: { '201': { description: Draft quality case cancelled without movement } } }
+  /api/v1/quality/dispositions/{id}/approve:
+    post: { operationId: approveQualityDisposition, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Disposition approved by independent actor } } }
+  /api/v1/quality/dispositions/{id}/reject:
+    post: { operationId: rejectQualityDisposition, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/ReasonVersionCommand' }, responses: { '201': { description: Disposition rejected and case returned to CONTAINED } } }
+  /api/v1/quality/dispositions/{id}/post:
+    post: { operationId: postQualityDisposition, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Atomic Inventory Core disposition and case close } } }
+  /api/v1/quality/expiry-runs:
+    post:
+      operationId: runExpiryControl
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [warehouseId, expiredLocationId, businessDate], properties: { warehouseId: { type: string, format: uuid }, expiredLocationId: { type: string, format: uuid }, businessDate: { type: string, format: date } } } } } }
+      responses: { '201': { description: Expired AVAILABLE stock moved to EXPIRED } }
+  /api/v1/returns:
+    post:
+      operationId: createCustomerReturn
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateCustomerReturn' } } } }
+      responses: { '201': { description: Draft whole-case customer return } }
+  /api/v1/returns/{id}:
+    get: { operationId: getCustomerReturn, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], responses: { '200': { description: Customer return and linked quality case } } }
+  /api/v1/returns/{id}/approve:
+    post: { operationId: approveCustomerReturn, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Return approved by independent actor } } }
+  /api/v1/returns/{id}/post:
+    post: { operationId: postCustomerReturn, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Returned stock quarantined and QualityCase created } } }
+  /api/v1/returns/{id}/cancel:
+    post: { operationId: cancelCustomerReturn, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/ReasonVersionCommand' }, responses: { '201': { description: Draft customer return cancelled without movement } } }
+  /api/v1/recalls:
+    post:
+      operationId: createRecall
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateRecall' } } } }
+      responses: { '201': { description: Draft batch recall with warehouse containment scopes } }
+  /api/v1/recalls/{id}:
+    get: { operationId: getRecall, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], responses: { '200': { description: Recall scopes, quality cases and ledger traceability } } }
+  /api/v1/recalls/{id}/approve:
+    post: { operationId: approveRecall, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Active recall guard enabled for the batch } } }
+  /api/v1/recalls/{id}/contain:
+    post: { operationId: containRecall, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: All scoped on-hand moved to RECALLED } } }
+  /api/v1/recalls/{id}/close:
+    post: { operationId: closeRecall, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/ReasonVersionCommand' }, responses: { '201': { description: Recall closed after all disposition and zero RECALLED on-hand } } }
+  /api/v1/recalls/{id}/cancel:
+    post: { operationId: cancelRecall, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/ReasonVersionCommand' }, responses: { '201': { description: Draft recall cancelled before the active batch guard is enabled } } }
+components:
+  parameters:
+    ActorId: { name: X-Actor-Id, in: header, required: true, schema: { type: string, format: uuid } }
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 16, maxLength: 128 } }
+    Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+  requestBodies:
+    VersionCommand: { required: true, content: { application/json: { schema: { type: object, required: [expectedVersion], properties: { expectedVersion: { type: integer, minimum: 1 } } } } } }
+    ReasonVersionCommand: { required: true, content: { application/json: { schema: { type: object, required: [expectedVersion, reason], properties: { expectedVersion: { type: integer, minimum: 1 }, reason: { type: string, minLength: 1 } } } } } }
+  schemas:
+    CreateQualityCase:
+      type: object
+      required: [caseCode, caseType, warehouseId, reason, lines]
+      properties:
+        caseCode: { type: string }
+        caseType: { type: string, enum: [DAMAGE, TEMPERATURE, PACKAGING, OTHER] }
+        warehouseId: { type: string, format: uuid }
+        reason: { type: string, minLength: 1 }
+        lines: { type: array, minItems: 1, items: { type: object, required: [balanceId, holdLocationId, quantity], properties: { balanceId: { type: string, format: uuid }, holdLocationId: { type: string, format: uuid }, holdStatus: { type: string, enum: [BLOCKED, QUARANTINED, DAMAGED] }, quantity: { type: integer, minimum: 1 } } } }
+    CreateDisposition:
+      type: object
+      required: [dispositionCode, dispositionType, reason, expectedVersion]
+      properties:
+        dispositionCode: { type: string }
+        dispositionType: { type: string, enum: [RELEASE, DESTROY, RETURN_TO_SUPPLIER, RECLASSIFY_DAMAGED] }
+        reason: { type: string, minLength: 1 }
+        expectedVersion: { type: integer, minimum: 1 }
+        destinations: { type: array, items: { type: object, required: [qualityCaseLineId, destinationLocationId], properties: { qualityCaseLineId: { type: string, format: uuid }, destinationLocationId: { type: string, format: uuid } } } }
+    CreateCustomerReturn:
+      type: object
+      required: [returnCode, warehouseId, customerReference, reason, lines]
+      properties:
+        returnCode: { type: string }
+        warehouseId: { type: string, format: uuid }
+        customerReference: { type: string }
+        reason: { type: string }
+        lines: { type: array, minItems: 1, items: { type: object, required: [skuId, batchId, quarantineLocationId, quantity], properties: { skuId: { type: string, format: uuid }, batchId: { type: string, format: uuid }, quarantineLocationId: { type: string, format: uuid }, quantity: { type: integer, minimum: 1 } } } }
+    CreateRecall:
+      type: object
+      required: [recallCode, skuId, batchId, severity, reason, scopes]
+      properties:
+        recallCode: { type: string }
+        skuId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        severity: { type: string, enum: [CLASS_I, CLASS_II, CLASS_III] }
+        reason: { type: string, minLength: 1 }
+        scopes: { type: array, minItems: 1, uniqueItems: true, items: { type: object, required: [warehouseId, recallLocationId], properties: { warehouseId: { type: string, format: uuid }, recallLocationId: { type: string, format: uuid } } } }
