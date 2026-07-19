@@ -1,0 +1,116 @@
+openapi: 3.1.0
+info:
+  title: WMS Phase 7 Transfer, Stocktake and Reversal API
+  version: 0.7.0
+paths:
+  /api/v1/transfers:
+    post:
+      operationId: createTransfer
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateTransfer' } } }
+      responses: { '201': { description: Draft location or warehouse transfer }, '409': { description: Scope, stock or idempotency conflict } }
+  /api/v1/transfers/{id}:
+    get:
+      operationId: getTransfer
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: Transfer with lines, receipts and discrepancies } }
+  /api/v1/transfers/{id}/approve:
+    post: { operationId: approveTransfer, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Four-eyes approved transfer } } }
+  /api/v1/transfers/{id}/start-picking:
+    post: { operationId: startTransferPicking, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Transfer in PICKING } } }
+  /api/v1/transfers/{id}/lines/{lineId}/pick:
+    post:
+      operationId: confirmTransferPick
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }, { name: lineId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [quantity, expectedVersion], properties: { quantity: { type: integer, minimum: 1 }, expectedVersion: { type: integer, minimum: 1 } } } } } }
+      responses: { '201': { description: Whole-case pick confirmed without balance change } }
+  /api/v1/transfers/{id}/dispatch:
+    post: { operationId: dispatchTransfer, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Direct location movement or warehouse IN_TRANSIT posting } } }
+  /api/v1/transfers/{id}/receipts:
+    post:
+      operationId: receiveTransfer
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TransferReceipt' } } } }
+      responses: { '201': { description: Partial or complete receipt with available/damaged/loss reporting } }
+  /api/v1/transfers/discrepancies/{discrepancyId}/resolve:
+    post:
+      operationId: resolveTransferDiscrepancy
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { name: discrepancyId, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [resolution], properties: { resolution: { type: string, minLength: 1 } } } } } }
+      responses: { '201': { description: Discrepancy resolved by a second actor } }
+  /api/v1/transfers/{id}/close:
+    post: { operationId: closeTransfer, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Received and discrepancy-free transfer closed } } }
+  /api/v1/stocktakes:
+    post:
+      operationId: createStocktake
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateStocktake' } } } }
+      responses: { '201': { description: PLANNED blind stocktake } }
+  /api/v1/stocktakes/{id}:
+    get: { operationId: getStocktake, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], responses: { '200': { description: Scoped stocktake; system quantity hidden during blind rounds } } }
+  /api/v1/stocktakes/{id}/start:
+    post: { operationId: startStocktake, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Locations locked and snapshot captured } } }
+  /api/v1/stocktakes/{id}/counts:
+    post:
+      operationId: recordStocktakeCount
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [snapshotLineId, countedQuantity, expectedVersion], properties: { snapshotLineId: { type: string, format: uuid }, countedQuantity: { type: integer, minimum: 0 }, evidenceReference: { type: string }, expectedVersion: { type: integer, minimum: 1 } } } } } }
+      responses: { '201': { description: Immutable round count entry } }
+  /api/v1/stocktakes/{id}/complete-round:
+    post: { operationId: completeStocktakeRound, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: RECOUNT or RECONCILED result } } }
+  /api/v1/stocktakes/{id}/request-approval:
+    post: { operationId: requestStocktakeApproval, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Variance pending approval } } }
+  /api/v1/stocktakes/{id}/approve:
+    post: { operationId: approveStocktake, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedVersion, reason], properties: { expectedVersion: { type: integer, minimum: 1 }, reason: { type: string, minLength: 1 } } } } } }, responses: { '201': { description: Approved adjustment created without balance change } } }
+  /api/v1/stocktakes/{id}/post-adjustment:
+    post: { operationId: postStocktakeAdjustment, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Atomic Inventory Core adjustment and location unlock } } }
+  /api/v1/reversals:
+    post:
+      operationId: createReversal
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateReversal' } } } }
+      responses: { '201': { description: Draft append-only reversal request } }
+  /api/v1/reversals/{id}:
+    get: { operationId: getReversal, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], responses: { '200': { description: Reversal request and original movement lines } } }
+  /api/v1/reversals/{id}/submit:
+    post: { operationId: submitReversal, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Reversal submitted } } }
+  /api/v1/reversals/{id}/approve:
+    post: { operationId: approveReversal, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: Reversal approved by a second actor } } }
+  /api/v1/reversals/{id}/post:
+    post: { operationId: postReversal, parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { $ref: '#/components/parameters/Id' }], requestBody: { $ref: '#/components/requestBodies/VersionCommand' }, responses: { '201': { description: New reverse movements referencing immutable originals } } }
+components:
+  parameters:
+    ActorId: { name: X-Actor-Id, in: header, required: true, schema: { type: string, format: uuid } }
+    IdempotencyKey: { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 16, maxLength: 128 } }
+    Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+  requestBodies:
+    VersionCommand: { required: true, content: { application/json: { schema: { type: object, required: [expectedVersion], properties: { expectedVersion: { type: integer, minimum: 1 }, reason: { type: string } } } } } }
+  schemas:
+    CreateTransfer:
+      type: object
+      required: [transferCode, transferType, sourceWarehouseId, destinationWarehouseId, lines]
+      properties:
+        transferCode: { type: string }
+        transferType: { type: string, enum: [LOCATION, WAREHOUSE] }
+        sourceWarehouseId: { type: string, format: uuid }
+        destinationWarehouseId: { type: string, format: uuid }
+        transitWarehouseId: { type: string, format: uuid }
+        transitLocationId: { type: string, format: uuid }
+        lines: { type: array, minItems: 1, items: { type: object, required: [skuId, batchId, sourceLocationId, destinationLocationId, quantity], properties: { skuId: { type: string, format: uuid }, batchId: { type: string, format: uuid }, sourceLocationId: { type: string, format: uuid }, destinationLocationId: { type: string, format: uuid }, quantity: { type: integer, minimum: 1 } } } }
+    TransferReceipt:
+      type: object
+      required: [receiptCode, expectedVersion, lines]
+      properties:
+        receiptCode: { type: string }
+        expectedVersion: { type: integer, minimum: 1 }
+        lines: { type: array, minItems: 1, items: { type: object, required: [transferLineId, destinationLocationId], properties: { transferLineId: { type: string, format: uuid }, destinationLocationId: { type: string, format: uuid }, damagedLocationId: { type: string, format: uuid }, receivedQuantity: { type: integer, minimum: 0 }, damagedQuantity: { type: integer, minimum: 0 }, missingQuantity: { type: integer, minimum: 0 }, reason: { type: string } } } }
+    CreateStocktake:
+      type: object
+      required: [sessionCode, warehouseId]
+      properties: { sessionCode: { type: string }, warehouseId: { type: string, format: uuid }, zoneId: { type: string, format: uuid }, locationId: { type: string, format: uuid }, skuId: { type: string, format: uuid }, blindCount: { type: boolean, default: true }, recountThreshold: { type: integer, minimum: 0 } }
+    CreateReversal:
+      type: object
+      required: [reversalCode, originalDocumentType, originalDocumentId, movementIds, reason]
+      properties: { reversalCode: { type: string }, originalDocumentType: { type: string }, originalDocumentId: { type: string, format: uuid }, movementIds: { type: array, minItems: 1, uniqueItems: true, items: { type: string, format: uuid } }, reason: { type: string, minLength: 1 } }

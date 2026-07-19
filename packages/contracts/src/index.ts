@@ -12,6 +12,11 @@ export type ErrorCode =
   | 'FEFO_OVERRIDE_REQUIRED'
   | 'MRSL_NOT_MET'
   | 'PICK_CONFLICT'
+  | 'TRANSFER_STATE_CONFLICT'
+  | 'STOCKTAKE_STATE_CONFLICT'
+  | 'STOCKTAKE_SNAPSHOT_STALE'
+  | 'INVENTORY_LOCATION_STOCKTAKE_LOCKED'
+  | 'REVERSAL_STATE_CONFLICT'
   | 'INTERNAL_ERROR';
 
 export interface ProblemDetails {
@@ -169,6 +174,50 @@ export interface FefoAllocationExplanation {
 export interface GoodsIssuePostingResult {
   id: string;
   goodsIssueCode: string;
+  status: 'POSTED';
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export type TransferStatus =
+  | 'DRAFT'
+  | 'APPROVED'
+  | 'PICKING'
+  | 'IN_TRANSIT'
+  | 'PARTIALLY_RECEIVED'
+  | 'RECEIVED'
+  | 'CLOSED'
+  | 'CANCELLED'
+  | 'REVERSED';
+
+export type StocktakeStatus =
+  | 'PLANNED'
+  | 'COUNTING'
+  | 'RECOUNT'
+  | 'RECONCILED'
+  | 'PENDING_APPROVAL'
+  | 'POSTED'
+  | 'CANCELLED';
+
+export type ReversalStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'POSTED' | 'CANCELLED';
+
+export interface TransferPostingResult {
+  id: string;
+  status: TransferStatus;
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export interface StocktakePostingResult {
+  id: string;
+  adjustmentId: string;
+  status: 'POSTED';
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export interface ReversalPostingResult {
+  id: string;
   status: 'POSTED';
   movementIds: readonly string[];
   replayed: boolean;

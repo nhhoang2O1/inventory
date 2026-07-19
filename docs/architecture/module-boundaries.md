@@ -8,7 +8,8 @@
 | Inventory Core | ATP query, reserve/release, post/reverse | batch, balance, reservation, movement, cost ledger | PO/order workflow |
 | Purchasing/Receiving | PO and receipt commands | supplier, PR, PO, receipt | Direct balance write |
 | Outbound | issue/pick/FEFO workflow | issue request, pick task, goods issue | Own ATP formula |
-| Transfer/Stocktake | transfer/count/adjustment workflow | transfer, count, adjustment | Direct balance write |
+| Transfer | location/warehouse transfer, receipt and discrepancy workflow | transfer, line, receipt, discrepancy | Direct balance write; own ATP formula |
+| Stocktake/Adjustment | snapshot, blind count, recount and adjustment workflow | stocktake session, snapshot, count, adjustment, reversal request | Direct balance/ledger write; mutation of original movement |
 | Quality/Recall | case, disposition, containment | quality case, return, recall | Direct balance write |
 | Planning/Reporting | queries, draft proposal | ROP policy, read model, export job | Source transaction update |
 | Integration/Audit | publish/reconcile/audit append | outbox, integration state, audit | Business decision ownership |

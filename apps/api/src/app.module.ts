@@ -6,6 +6,9 @@ import { InventoryModule } from './modules/inventory/public/inventory.module.js'
 import { PurchasingModule } from './modules/purchasing/public/purchasing.module.js';
 import { ReceivingModule } from './modules/receiving/public/receiving.module.js';
 import { OutboundModule } from './modules/outbound/public/outbound.module.js';
+import { TransferModule } from './modules/transfer/public/transfer.module.js';
+import { StocktakeModule } from './modules/stocktake/public/stocktake.module.js';
+import { AdjustmentModule } from './modules/adjustment/public/adjustment.module.js';
 
 @Module({
   imports: [
@@ -15,7 +18,10 @@ import { OutboundModule } from './modules/outbound/public/outbound.module.js';
     InventoryModule,
     PurchasingModule,
     ReceivingModule,
-    OutboundModule
+    OutboundModule,
+    TransferModule,
+    StocktakeModule,
+    AdjustmentModule
   ]
 })
 export class AppModule {}

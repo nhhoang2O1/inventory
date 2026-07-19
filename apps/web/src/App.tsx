@@ -24,6 +24,8 @@ export function App() {
   const [allocationId, setAllocationId] = useState('');
   const [barcode, setBarcode] = useState('');
   const [pickQuantity, setPickQuantity] = useState(1);
+  const [phase7Path, setPhase7Path] = useState('/transfers');
+  const [phase7Body, setPhase7Body] = useState('{\n  "expectedVersion": 1\n}');
   const [result, setResult] = useState('Chưa có thao tác.');
 
   useEffect(() => {
@@ -39,7 +41,7 @@ export function App() {
     if (!actorId.trim()) throw new Error('Nhập Actor ID trước khi thao tác.');
     setBusy(true);
     try {
-      const response = await fetch(`/api/v1/outbound${path}`, {
+      const response = await fetch(`/api/v1${path}`, {
         method,
         headers: {
           'Content-Type': 'application/json',
@@ -73,7 +75,7 @@ export function App() {
 
   async function createIssueRequest(): Promise<void> {
     if (!warehouseId.trim() || !skuId.trim()) throw new Error('Warehouse ID và SKU ID là bắt buộc.');
-    const payload = await callApi('/issue-requests', {
+    const payload = await callApi('/outbound/issue-requests', {
       issueCode,
       warehouseId: warehouseId.trim(),
       salesChannel,
@@ -86,7 +88,7 @@ export function App() {
 
   async function transition(name: 'submit' | 'approve' | 'allocate'): Promise<void> {
     if (!issueRequestId.trim()) throw new Error('Nhập Issue Request ID.');
-    const payload = await callApi(`/issue-requests/${issueRequestId.trim()}/${name}`, {
+    const payload = await callApi(`/outbound/issue-requests/${issueRequestId.trim()}/${name}`, {
       expectedVersion: issueVersion
     });
     updateIssueVersion(payload);
@@ -99,7 +101,7 @@ export function App() {
 
   async function createPickTask(): Promise<void> {
     if (!issueRequestId.trim()) throw new Error('Nhập Issue Request ID.');
-    const payload = await callApi(`/issue-requests/${issueRequestId.trim()}/pick-tasks`, {
+    const payload = await callApi(`/outbound/issue-requests/${issueRequestId.trim()}/pick-tasks`, {
       expectedVersion: issueVersion
     });
     if (typeof payload.id === 'string') setPickTaskId(payload.id);
@@ -111,7 +113,7 @@ export function App() {
     if (!pickTaskId.trim() || !allocationId.trim() || !barcode.trim()) {
       throw new Error('Pick Task ID, Allocation ID và barcode là bắt buộc.');
     }
-    const payload = await callApi(`/pick-tasks/${pickTaskId.trim()}/scan`, {
+    const payload = await callApi(`/outbound/pick-tasks/${pickTaskId.trim()}/scan`, {
       allocationId: allocationId.trim(),
       barcode: barcode.trim(),
       quantity: pickQuantity,
@@ -122,7 +124,7 @@ export function App() {
 
   async function postGoodsIssue(): Promise<void> {
     if (!issueRequestId.trim()) throw new Error('Nhập Issue Request ID.');
-    const payload = await callApi(`/issue-requests/${issueRequestId.trim()}/post`, {
+    const payload = await callApi(`/outbound/issue-requests/${issueRequestId.trim()}/post`, {
       expectedVersion: issueVersion
     });
     updateIssueVersion(payload);
@@ -130,8 +132,21 @@ export function App() {
 
   async function loadIssue(): Promise<void> {
     if (!issueRequestId.trim()) throw new Error('Nhập Issue Request ID.');
-    const payload = await callApi(`/issue-requests/${issueRequestId.trim()}`, undefined, 'GET');
+    const payload = await callApi(`/outbound/issue-requests/${issueRequestId.trim()}`, undefined, 'GET');
     updateIssueVersion(payload);
+  }
+
+  async function callPhase7(method: 'GET' | 'POST'): Promise<void> {
+    if (!phase7Path.startsWith('/transfers') && !phase7Path.startsWith('/stocktakes') && !phase7Path.startsWith('/reversals')) {
+      throw new Error('Endpoint Phase 7 phải bắt đầu bằng /transfers, /stocktakes hoặc /reversals.');
+    }
+    let body: JsonRecord | undefined;
+    if (method === 'POST') {
+      const parsed: unknown = JSON.parse(phase7Body);
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') throw new Error('Body phải là JSON object.');
+      body = parsed as JsonRecord;
+    }
+    await callApi(phase7Path.trim(), body, method);
   }
 
   return (
@@ -198,6 +213,29 @@ export function App() {
           <button className="danger" disabled={busy} onClick={() => void perform(postGoodsIssue)}>Post Goods Issue</button>
         </section>
       </div>
+
+      <section className="panel phase7-console" aria-labelledby="phase7-title">
+        <div>
+          <p className="step">PHASE 7 · TRANSFER, STOCKTAKE & REVERSAL</p>
+          <h2 id="phase7-title">Bảng điều khiển nghiệp vụ Phase 7</h2>
+          <p>Dùng Actor ID ở trên. POST tự tạo Idempotency-Key và Correlation ID mới.</p>
+        </div>
+        <label>Endpoint
+          <input value={phase7Path} onChange={(event) => setPhase7Path(event.target.value)} placeholder="/transfers hoặc /stocktakes" />
+        </label>
+        <label>JSON body
+          <textarea value={phase7Body} onChange={(event) => setPhase7Body(event.target.value)} rows={9} spellCheck={false} />
+        </label>
+        <div className="actions">
+          <button className="ghost" disabled={busy} onClick={() => void perform(() => callPhase7('GET'))}>GET chi tiết</button>
+          <button disabled={busy} onClick={() => void perform(() => callPhase7('POST'))}>POST lệnh</button>
+        </div>
+        <p className="endpoint-help">
+          Luồng chính: <code>/transfers</code> → approve → start-picking → pick → dispatch → receipts → close;{' '}
+          <code>/stocktakes</code> → start → counts → complete-round → request-approval → approve → post-adjustment;{' '}
+          <code>/reversals</code> → submit → approve → post.
+        </p>
+      </section>
 
       <section className="result" aria-live="polite">
         <div><p className="step">Kết quả API</p><h2>Phản hồi gần nhất</h2></div>
