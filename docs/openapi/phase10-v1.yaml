@@ -19,6 +19,22 @@ paths:
           description: Migration head and all blocker counts are ready
         '503':
           description: Database, migration or operational state is not ready
+  /health/metrics:
+    get:
+      summary: Prometheus metrics for the API process
+      parameters:
+        - name: X-Metrics-Token
+          in: header
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: Prometheus text exposition
+          content:
+            text/plain:
+              schema: { type: string }
+        '401':
+          description: Metrics token missing or invalid
   /iam/auth/login:
     post:
       summary: Create a short-lived local-auth session
@@ -52,6 +68,17 @@ paths:
       responses:
         '200':
           description: Session revoked
+  /iam/auth/me:
+    get:
+      summary: Read the current authenticated user and warehouse scopes
+      security:
+        - sessionCookie: []
+        - bearerSession: []
+      responses:
+        '200':
+          description: Current user profile and effective warehouse scopes
+        '401':
+          description: Session is missing or expired
   /release/readiness:
     get:
       summary: Read operational release blockers

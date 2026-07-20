@@ -58,7 +58,7 @@ export class PurchaseOrderService{
   async findAll(actorId:string,warehouseId?:string){
     if(warehouseId&&!await this.db.hasAccess(actorId,'PURCHASING.VIEW',warehouseId))throw new ForbiddenException('PURCHASING.VIEW is required');
     return this.db.query(`SELECT DISTINCT po.id,po.po_code,po.supplier_id,po.warehouse_id,po.status,po.order_date,
-      po.expected_delivery_date,po.version,supplier.code supplier_code,supplier.name supplier_name
+      po.expected_delivery_date,po.version,po.created_by,supplier.code supplier_code,supplier.name supplier_name
       FROM purchasing.purchase_order po
       JOIN purchasing.supplier supplier ON supplier.id=po.supplier_id
       JOIN iam.user_warehouse_scope scope ON scope.user_id=$1 AND scope.warehouse_id=po.warehouse_id

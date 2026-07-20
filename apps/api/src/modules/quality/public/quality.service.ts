@@ -102,7 +102,7 @@ export class QualityService {
   async listCases(actorId: string, warehouseId: string) {
     await this.authorize(actorId, 'QUALITY.VIEW', warehouseId);
     return this.db.query(`
-      SELECT qc.id, qc.case_code, qc.case_type, qc.status, qc.reason, qc.created_at,
+      SELECT qc.id, qc.case_code, qc.case_type, qc.status, qc.reason, qc.created_at, qc.version,
              qcl.id AS case_line_id, qcl.sku_id, sku.sku_code, sku.name AS sku_name, qcl.batch_id, batch.batch_code,
              qcl.quantity::int AS quantity, qcl.source_location_id AS location_id, loc.location_code,
              qd.disposition_type

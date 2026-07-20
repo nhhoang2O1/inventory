@@ -1,4 +1,4 @@
-import { BadRequestException,Body,Controller,Headers,HttpCode,HttpStatus,Post,Req,Res } from '@nestjs/common';
+import { BadRequestException,Body,Controller,Get,Headers,HttpCode,HttpStatus,Post,Req,Res,UnauthorizedException } from '@nestjs/common';
 import { AuthService } from './auth.service.js';
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function id(value:string|undefined,name:string){if(!value||!uuid.test(value))throw new BadRequestException(`${name} must be UUID`);return value;}
@@ -23,6 +23,13 @@ export class AuthController{
     response.cookie('wms_session',result.sessionToken,{httpOnly:true,sameSite:'strict',secure:process.env.NODE_ENV==='production',
       maxAge:duration*60_000,path:'/'});
     const {sessionToken:_,...safe}=result;return safe;
+  }
+
+  @Get('me')
+  async me(@Headers('authorization')authorization:string|undefined,@Headers('cookie')cookie:string|undefined){
+    const token=authorization?.replace(/^Bearer\s+/i,'')||cookieToken(cookie);
+    if(!token)throw new UnauthorizedException('Authenticated session is required');
+    return this.service.currentSession(token);
   }
 
   @Post('logout') @HttpCode(HttpStatus.OK)

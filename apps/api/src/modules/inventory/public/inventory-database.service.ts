@@ -1,11 +1,11 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import pg, { type PoolClient, type QueryResultRow } from 'pg';
+import { sharedDatabasePool } from '../../../shared/database-pool.js';
 
-const { Pool } = pg;
 
 @Injectable()
 export class InventoryDatabaseService implements OnModuleDestroy {
-  private readonly pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  private readonly pool = sharedDatabasePool;
 
   async query<T extends QueryResultRow>(sql: string, values: readonly unknown[] = []): Promise<T[]> {
     return (await this.pool.query<T>(sql, [...values])).rows;
@@ -52,5 +52,5 @@ export class InventoryDatabaseService implements OnModuleDestroy {
     return rows[0]?.allowed??false;
   }
 
-  async onModuleDestroy(): Promise<void> { await this.pool.end(); }
+  async onModuleDestroy(): Promise<void> { return; }
 }

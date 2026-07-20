@@ -1,19 +1,50 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { UserRole, ViewType } from '../types';
 
 export function useAuth() {
   const [view, setView] = useState<ViewType>('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [selectedWarehouse, setSelectedWarehouse] = useState('Warehouse Alpha');
+  const [selectedWarehouse, setSelectedWarehouse] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [selectedWarehouseCode, setSelectedWarehouseCode] = useState('');
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [userId, setUserId] = useState('');
-  const [username, setUsername] = useState('manager');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [userRole, setUserRole] = useState<UserRole>('Manager');
+  const [userRole, setUserRole] = useState<UserRole>('Warehouse Staff');
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    void fetch('/api/v1/iam/auth/me', { credentials: 'include' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('No active session');
+        return response.json();
+      })
+      .then((data) => {
+        if (!mounted) return;
+        setIsLoggedIn(true);
+        setView('dashboard');
+        setUserRole(data.userRole as UserRole);
+        setUserId(data.userId || '');
+        setUsername(data.username || '');
+        const nextWarehouses = data.warehouses || [];
+        setWarehouses(nextWarehouses);
+        if (nextWarehouses[0]) {
+          setSelectedWarehouse(nextWarehouses[0].name);
+          setSelectedWarehouseId(nextWarehouses[0].id);
+          setSelectedWarehouseCode(nextWarehouses[0].code);
+        }
+      })
+      .catch(() => {
+        if (mounted) setIsLoggedIn(false);
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false);
+      });
+    return () => { mounted = false; };
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,6 +54,7 @@ export function useAuth() {
     try {
       const response = await fetch('/api/v1/iam/auth/login', {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'X-Correlation-Id': crypto.randomUUID ? crypto.randomUUID() : 'auth-correlation-id'
@@ -70,6 +102,7 @@ export function useAuth() {
     setWarehouses([]);
     setSelectedWarehouseId('');
     setSelectedWarehouseCode('');
+    setSelectedWarehouse('');
   };
 
   return {
@@ -89,7 +122,6 @@ export function useAuth() {
     password,
     setPassword,
     userRole,
-    setUserRole,
     loginError,
     isLoading,
     handleLogin,

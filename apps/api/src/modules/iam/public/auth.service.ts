@@ -111,6 +111,31 @@ export class AuthService {
     return rows[0]??null;
   }
 
+  async currentSession(token:string){
+    const session=await this.validateSession(token);
+    if(!session)throw new UnauthorizedException('Session is invalid or expired');
+    const rows=await this.db.query<LoginUser>(`SELECT user_account.id,user_account.username,user_account.display_name,
+      user_account.password_hash,user_account.status,role.code role_code,role.name role_name
+      FROM iam.app_user user_account JOIN iam.role role ON role.id=user_account.role_id
+      WHERE user_account.id=$1 AND user_account.status='ACTIVE'`,[session.user_id]);
+    const user=rows[0];
+    if(!user)throw new UnauthorizedException('Session user is inactive');
+    const scopes=await this.db.query<{warehouse_id:string;warehouse_name:string;warehouse_code:string}>(`
+      SELECT warehouse.id warehouse_id,warehouse.name warehouse_name,warehouse.code warehouse_code
+      FROM iam.user_warehouse_scope scope JOIN warehouse.warehouse warehouse ON warehouse.id=scope.warehouse_id
+      WHERE scope.user_id=$1 AND scope.revoked_at IS NULL AND scope.valid_from<=now()
+        AND(scope.valid_until IS NULL OR scope.valid_until>now()) AND warehouse.status='ACTIVE'
+      ORDER BY warehouse.code`,[user.id]);
+    const roleMap:Record<string,string>={MANAGER:'Manager',ACCOUNTANT:'Accountant',SALES:'Sales'};
+    return {
+      userId:user.id,
+      username:user.username,
+      displayName:user.display_name,
+      userRole:roleMap[user.role_code]??'Warehouse Staff',
+      warehouses:scopes.map((scope)=>({id:scope.warehouse_id,name:scope.warehouse_name,code:scope.warehouse_code}))
+    };
+  }
+
   async logout(token:string,actorId:string,correlationId:string){
     await this.db.transaction(async(client)=>{
       await client.query(`UPDATE iam.auth_session SET revoked_at=now()

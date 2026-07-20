@@ -1,121 +1,160 @@
-import { useState } from 'react';
-import { OutboundItem } from '../types';
+import { useCallback, useEffect, useState } from 'react';
+import { OutboundItem, ViewType } from '../types';
 
-export function useOutbound(setView: (view: any) => void) {
-  const [outboundItems, setOutboundItems] = useState<OutboundItem[]>([
-    {
-      id: '1',
-      location: 'A1-R2-B04',
-      name: 'Bia Heineken 330ml (Thùng 24 lon)',
-      ratio: 24,
-      lot: 'BATCH-HNK-992',
-      exp: '2026-08-15',
-      reqQty: 10,
-      status: 'Picked'
-    },
-    {
-      id: '2',
-      location: 'A1-R2-B05',
-      name: 'Nước ngọt Coca-Cola 320ml (Thùng 24 lon)',
-      ratio: 24,
-      lot: 'BATCH-CC-104',
-      exp: '2026-09-01',
-      reqQty: 25,
-      status: 'Picked'
-    },
-    {
-      id: '3',
-      location: 'A2-R1-B12',
-      name: 'Nước suối Aquafina 500ml (Thùng 24 chai)',
-      ratio: 24,
-      lot: 'BATCH-AQ-005',
-      exp: '2026-07-28',
-      reqQty: 50,
-      status: 'Picking'
-    },
-    {
-      id: '4',
-      location: 'A2-R3-B01',
-      name: 'Nước tăng lực Redbull 250ml (Thùng 24 lon)',
-      ratio: 24,
-      lot: 'BATCH-RB-772',
-      exp: '2026-11-20',
-      reqQty: 15,
-      status: 'Pending'
-    },
-    {
-      id: '5',
-      location: 'C1-R1-B08',
-      name: 'Bia Tiger Bạc 330ml (Thùng 24 lon)',
-      ratio: 24,
-      lot: 'BATCH-TIG-441',
-      exp: '2027-02-05',
-      reqQty: 100,
-      status: 'Pending'
-    }
-  ]);
+interface IssueRequest {
+  id: string;
+  issue_code: string;
+  status: string;
+  version: number;
+  requested_by: string;
+  created_at: string;
+  recipient_reference?: string | null;
+}
+
+const correlation = () => crypto.randomUUID();
+const idempotency = () => `${crypto.randomUUID()}-${Date.now()}`;
+
+export function useOutbound(actorId: string, warehouseId: string, setView: (view: ViewType) => void) {
+  const [requests, setRequests] = useState<IssueRequest[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [scanInput, setScanInput] = useState('');
   const [pickAlert, setPickAlert] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleScanSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const barcode = scanInput.trim().toUpperCase();
-    if (!barcode) return;
-
-    const foundIndex = outboundItems.findIndex(
-      item => item.location === barcode || item.lot === barcode
-    );
-
-    if (foundIndex !== -1) {
-      const item = outboundItems[foundIndex];
-      if (item) {
-        if (item.status === 'Picked') {
-          setPickAlert(`Mục tại vị trí ${item.location} đã được pick trước đó.`);
-        } else {
-          const updated = [...outboundItems];
-          const updatedItem = updated[foundIndex];
-          if (updatedItem) {
-            updatedItem.status = 'Picked';
-          }
-          setOutboundItems(updated);
-          setPickAlert(`Quét thành công! Đã xác nhận lấy hàng tại ô kệ ${item.location}.`);
-        }
-      }
-    } else {
-      setPickAlert(`Barcode "${barcode}" không khớp với vị trí ô kệ hoặc Mã lô hiện tại.`);
+  const load = useCallback(async () => {
+    if (!actorId || !warehouseId) return;
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/v1/outbound/issue-requests?warehouseId=${encodeURIComponent(warehouseId)}&limit=50`, {
+        credentials: 'include',
+        headers: { 'X-Correlation-Id': correlation() }
+      });
+      if (!response.ok) throw new Error((await response.json()).message || 'Không tải được phiếu xuất kho');
+      setRequests(await response.json());
+    } catch (error) {
+      setPickAlert(error instanceof Error ? error.message : 'Không tải được phiếu xuất kho');
+    } finally {
+      setIsLoading(false);
     }
+  }, [actorId, warehouseId]);
 
-    setScanInput('');
-    setTimeout(() => setPickAlert(null), 4000);
-  };
+  useEffect(() => { void load(); }, [load]);
 
-  const handlePickRowClick = (id: string) => {
-    const updated = outboundItems.map(item => {
-      if (item.id === id) {
-        return { ...item, status: (item.status === 'Picked' ? 'Pending' : 'Picked') as 'Picked' | 'Pending' };
-      }
-      return item;
+  const command = useCallback(async (id: string, action: string, version: number, body: Record<string, unknown> = {}) => {
+    const response = await fetch(`/api/v1/outbound/issue-requests/${id}/${action}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': idempotency(),
+        'X-Correlation-Id': correlation()
+      },
+      body: JSON.stringify({ expectedVersion: version, ...body })
     });
-    setOutboundItems(updated);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || `Không thể ${action} phiếu xuất`);
+    await load();
+    return data;
+  }, [load]);
+
+  const handlePickRowClick = (id: string) => setSelectedId(id);
+
+  const handleScanSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedId) {
+      setPickAlert('Chọn một phiếu xuất đang PICKING trước khi quét.');
+      return;
+    }
+    const request = requests.find((item) => item.id === selectedId);
+    if (!request || request.status !== 'PICKING') {
+      setPickAlert('Phiếu được chọn chưa ở trạng thái PICKING.');
+      return;
+    }
+    try {
+      const detailResponse = await fetch(`/api/v1/outbound/issue-requests/${selectedId}`, {
+        credentials: 'include',
+        headers: { 'X-Correlation-Id': correlation() }
+      });
+      const detail = await detailResponse.json();
+      const task = detail.pickTasks?.[0];
+      const allocation = detail.allocations?.[0];
+      if (!task || !allocation) throw new Error('Phiếu chưa có task hoặc allocation để quét');
+      const response = await fetch(`/api/v1/outbound/pick-tasks/${task.id}/scan`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotency(), 'X-Correlation-Id': correlation() },
+        body: JSON.stringify({
+          allocationId: allocation.id,
+          barcode: scanInput.trim(),
+          quantity: 1,
+          expectedVersion: task.version
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Quét không thành công');
+      setPickAlert('Đã ghi nhận lần quét vào API.');
+      setScanInput('');
+      await load();
+    } catch (error) {
+      setPickAlert(error instanceof Error ? error.message : 'Quét không thành công');
+    }
   };
 
-  const onCompletePick = () => {
-    alert("Xác nhận bốc xếp hoàn tất! Phiếu xuất kho #PK-9824 chuyển sang trạng thái Xuất xưởng.");
-    setView('dashboard');
+  const onCompletePick = async () => {
+    const request = requests.find((item) => item.id === selectedId);
+    if (!request) return;
+    try {
+      await command(request.id, 'post', request.version, {});
+      setPickAlert('Đã post goods issue thành công.');
+      setView('dashboard');
+    } catch (error) {
+      setPickAlert(error instanceof Error ? error.message : 'Không thể post goods issue');
+    }
   };
 
-  const onCancelPick = () => {
-    alert("Đã tạm dừng quá trình pick hàng.");
+  const onCancelPick = async () => {
+    const request = requests.find((item) => item.id === selectedId);
+    if (!request) return;
+    try {
+      await command(request.id, 'cancel', request.version, { reason: 'Cancelled by operator from outbound workbench' });
+      setPickAlert('Đã hủy phiếu qua API.');
+    } catch (error) {
+      setPickAlert(error instanceof Error ? error.message : 'Không thể hủy phiếu');
+    }
   };
+
+  const transition = async (request: IssueRequest, action: string) => {
+    try {
+      await command(request.id, action, request.version);
+      setPickAlert(`Đã thực hiện ${action} cho ${request.issue_code}.`);
+    } catch (error) {
+      setPickAlert(error instanceof Error ? error.message : `Không thể ${action}`);
+    }
+  };
+
+  const outboundItems: OutboundItem[] = requests.map((request) => ({
+    id: request.id,
+    location: request.issue_code,
+    name: request.recipient_reference || 'Phiếu xuất kho',
+    ratio: 1,
+    lot: request.status,
+    exp: request.created_at.slice(0, 10),
+    reqQty: 0,
+    status: request.status === 'PICKING' ? 'Picking' : request.status === 'POSTED' ? 'Picked' : 'Pending'
+  }));
 
   return {
     outboundItems,
+    requests,
+    selectedId,
     scanInput,
     setScanInput,
     pickAlert,
+    isLoading,
     handleScanSubmit,
     handlePickRowClick,
     onCompletePick,
-    onCancelPick
+    onCancelPick,
+    transition
   };
 }

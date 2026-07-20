@@ -39,4 +39,6 @@ export interface ApprovalRequest {
   priority: 'CRITICAL' | 'HIGH' | 'NORMAL';
   submittedTime: string;
   creatorId: string;
+  resourceType?: 'PURCHASE_ORDER' | 'INVENTORY_ADJUSTMENT' | 'QUALITY_EXCEPTION';
+  resourceVersion?: number;
 }

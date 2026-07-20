@@ -26,15 +26,14 @@ export function App() {
   const inbound = useInbound(auth.userId, auth.selectedWarehouseId, auth.selectedWarehouseCode);
 
   // 3. ViewModel: Outbound picking states
-  const outbound = useOutbound(auth.setView);
+  const outbound = useOutbound(auth.userId, auth.selectedWarehouseId, auth.setView);
 
   // 4. ViewModel: Approval tickets states
-  const approval = useApproval(auth.username);
+  const approval = useApproval(auth.userId, auth.selectedWarehouseId);
 
   // 5. Shared local presentation states (Tabs filters & selections)
   const [financialSubTab, setFinancialSubTab] = useState<FinancialSubTab>('valuation');
   const [brandFilter, setBrandFilter] = useState('All');
-  const [selectedPartnerId, setSelectedPartnerId] = useState('D-10089');
 
   return (
     <div className="min-h-screen bg-background text-on-background font-body-md flex">
@@ -44,7 +43,6 @@ export function App() {
           currentView={auth.view}
           setView={auth.setView}
           userRole={auth.userRole}
-          setUserRole={auth.setUserRole}
           onLogout={auth.handleLogout}
         />
       )}
@@ -73,8 +71,6 @@ export function App() {
         <main className={`flex-1 p-6 ${auth.isLoggedIn ? 'mt-16' : ''}`}>
           {auth.view === 'login' && (
             <LoginView
-              selectedWarehouse={auth.selectedWarehouse}
-              setSelectedWarehouse={auth.setSelectedWarehouse}
               username={auth.username}
               setUsername={auth.setUsername}
               password={auth.password}
@@ -87,6 +83,8 @@ export function App() {
 
           {auth.isLoggedIn && auth.view === 'dashboard' && (
             <DashboardView
+              actorId={auth.userId}
+              warehouseId={auth.selectedWarehouseId}
               pendingApprovalsCount={approval.approvalRequests.length}
             />
           )}
@@ -117,13 +115,17 @@ export function App() {
           {auth.isLoggedIn && auth.view === 'outbound' && (
             <OutboundView
               outboundItems={outbound.outboundItems}
+              requests={outbound.requests}
+              selectedId={outbound.selectedId}
               scanInput={outbound.scanInput}
               setScanInput={outbound.setScanInput}
               pickAlert={outbound.pickAlert}
+              isLoading={outbound.isLoading}
               handleScanSubmit={outbound.handleScanSubmit}
               handlePickRowClick={outbound.handlePickRowClick}
               onCompletePick={outbound.onCompletePick}
               onCancelPick={outbound.onCancelPick}
+              transition={outbound.transition}
             />
           )}
 
@@ -142,8 +144,8 @@ export function App() {
             <FinancialView
               financialSubTab={financialSubTab}
               setFinancialSubTab={setFinancialSubTab}
-              selectedPartnerId={selectedPartnerId}
-              setSelectedPartnerId={setSelectedPartnerId}
+              actorId={auth.userId}
+              warehouseId={auth.selectedWarehouseId}
             />
           )}
 

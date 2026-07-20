@@ -41,6 +41,8 @@ jobs:
       - run: npm ci
       - name: Production dependency audit
         run: npm audit --omit=dev
+      - name: OpenAPI contract validation
+        run: npm run openapi:validate
       - name: Forward migration and idempotency
         run: |
           npm run db:migrate

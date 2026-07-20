@@ -8,7 +8,7 @@ export class AuthSessionGuard implements CanActivate{
   constructor(private readonly auth:AuthService){}
   async canActivate(context:ExecutionContext){
     const request=context.switchToHttp().getRequest<{method:string;url:string;headers:Record<string,string|undefined>}>();
-    if(request.method==='OPTIONS'||request.url.endsWith('/health')||request.url.endsWith('/health/ready')||request.url.endsWith('/iam/auth/login'))return true;
+    if(request.method==='OPTIONS'||request.url.endsWith('/health')||request.url.endsWith('/health/ready')||request.url.endsWith('/health/metrics')||request.url.endsWith('/iam/auth/login'))return true;
     const required=process.env.NODE_ENV==='production'||process.env.REQUIRE_SESSION_AUTH==='true';
     const authorization=request.headers.authorization;
     const token=authorization?.replace(/^Bearer\s+/i,'')||cookieToken(request.headers.cookie);

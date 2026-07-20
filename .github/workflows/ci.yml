@@ -3,7 +3,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, hoang]
 
 permissions:
   contents: read
@@ -34,6 +34,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run verify
+      - run: npm run openapi:validate
       - run: npm run db:migrate
       - run: npm run build
       - run: npm test
