@@ -2,13 +2,14 @@ import React from 'react';
 import { UserRole } from '../types';
 
 interface HeaderProps {
-  selectedWarehouse: string;
-  setSelectedWarehouse: (warehouse: string) => void;
+  warehouses: Array<{ id: string; name: string; code: string }>;
+  selectedWarehouseId: string;
+  onWarehouseChange: (id: string) => void;
   operatorId: string;
   userRole: UserRole;
 }
 
-export function Header({ selectedWarehouse, setSelectedWarehouse, operatorId, userRole }: HeaderProps) {
+export function Header({ warehouses, selectedWarehouseId, onWarehouseChange, operatorId, userRole }: HeaderProps) {
   return (
     <header className="h-16 px-6 bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center shrink-0 z-40 fixed top-0 right-0 w-full md:w-[calc(100%-240px)]">
       <div className="flex items-center gap-4">
@@ -35,12 +36,18 @@ export function Header({ selectedWarehouse, setSelectedWarehouse, operatorId, us
           <span className="material-symbols-outlined text-[18px] text-on-surface-variant">warehouse</span>
           <select
             className="bg-surface-container-low border border-outline-variant rounded px-2.5 py-1 text-xs text-on-surface font-semibold focus:ring-1 focus:ring-secondary focus:outline-none"
-            value={selectedWarehouse}
-            onChange={(e) => setSelectedWarehouse(e.target.value)}
+            value={selectedWarehouseId}
+            onChange={(e) => onWarehouseChange(e.target.value)}
           >
-            <option value="Warehouse Alpha">Kho Alpha (Miền Bắc)</option>
-            <option value="Warehouse Beta">Kho Beta (Miền Nam)</option>
-            <option value="Depot Gamma">Kho Tổng Gamma</option>
+            {warehouses.length > 0 ? (
+              warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name} ({w.code})
+                </option>
+              ))
+            ) : (
+              <option value="">Không có kho</option>
+            )}
           </select>
         </div>
 

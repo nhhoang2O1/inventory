@@ -36,6 +36,72 @@ export class InventoryApplicationService {
     await this.authorize(actorId,'INVENTORY.RECONCILE',warehouseId);
     return this.db.query('SELECT sku_id,batch_id,location_id,stock_status,quantity_on_hand,ledger_quantity,variance FROM inventory.ledger_balance_reconciliation WHERE warehouse_id=$1 ORDER BY abs(variance) DESC',[warehouseId]);
   }
+  async skus(actorId: string) {
+    return this.db.query(`
+      SELECT s.id, s.code, s.name, u.code as uom_code, ps.units_per_case as ratio
+      FROM catalog.sku s
+      LEFT JOIN catalog.unit_of_measure u ON u.id = s.base_uom_id
+      LEFT JOIN catalog.packaging_specification ps ON ps.sku_id = s.id AND ps.valid_until IS NULL
+      ORDER BY s.name ASC
+    `);
+  }
+  async users(actorId: string) {
+    return this.db.query(`
+      SELECT id, username, display_name
+      FROM iam.app_user
+      WHERE status = 'ACTIVE'
+      ORDER BY username
+    `);
+  }
+  async warehouses(actorId: string) {
+    return this.db.query(`
+      SELECT id, code, name, status
+      FROM warehouse.warehouse
+      WHERE status = 'ACTIVE'
+      ORDER BY code ASC
+    `);
+  }
+  async zones(actorId: string, warehouseId: string) {
+    return this.db.query(`
+      SELECT id, code, name
+      FROM warehouse.zone
+      WHERE warehouse_id = $1 AND status = 'ACTIVE'
+      ORDER BY code ASC
+    `, [warehouseId]);
+  }
+  async locations(actorId: string, warehouseId: string) {
+    return this.db.query(`
+      SELECT l.id, l.code, z.code as zone_code
+      FROM warehouse.location l
+      JOIN warehouse.zone z ON z.id = l.zone_id
+      WHERE z.warehouse_id = $1 AND l.status = 'ACTIVE'
+      ORDER BY z.code, l.code
+    `, [warehouseId]);
+  }
+  async batches(actorId: string, skuId: string) {
+    return this.db.query(`
+      SELECT id, batch_code, manufacturing_date, expiration_date
+      FROM inventory.batch
+      WHERE sku_id = $1
+      ORDER BY expiration_date ASC
+    `, [skuId]);
+  }
+  async findOrCreateBatch(actorId: string, input: { skuId: string; batchCode: string; manufacturingDate: string; expirationDate: string }) {
+    const existing = await this.db.query<{ id: string }>(
+      'SELECT id FROM inventory.batch WHERE sku_id = $1 AND batch_code = $2',
+      [input.skuId, input.batchCode.trim()]
+    );
+    if (existing.length > 0) {
+      return existing[0];
+    }
+    const result = await this.db.query<{ id: string }>(
+      `INSERT INTO inventory.batch (sku_id, batch_code, manufacturing_date, expiration_date)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id`,
+      [input.skuId, input.batchCode.trim(), input.manufacturingDate, input.expirationDate]
+    );
+    return result[0];
+  }
 
   async reserve(actorId:string,input:{demandType:string;demandId:string;skuId:string;warehouseId:string;quantity:number;expiresAt?:string},key:string){
     await this.authorize(actorId,'INVENTORY.RESERVE',input.warehouseId);
@@ -80,6 +146,16 @@ export class InventoryApplicationService {
         original.source_warehouse_id,original.source_location_id,original.source_status,actorId,correlationId,reason,movementId]);
       return{movementId:result.rows[0]?.id,reversalOf:movementId};
     });}catch(error){this.mapConflict(error);}
+  }
+
+  async positions(actorId: string, warehouseId: string) {
+    await this.authorize(actorId, 'INVENTORY.VIEW', warehouseId);
+    return this.db.query(`
+      SELECT sku_code, sku_name, batch_code, stock_status, quantity_on_hand, expiration_date
+      FROM reporting.inventory_position
+      WHERE warehouse_id = $1
+      ORDER BY sku_code, expiration_date ASC
+    `, [warehouseId]);
   }
 
   private async postLine(client:PoolClient,actorId:string,documentType:string,documentId:string,key:string,correlationId:string,reason:string|undefined,line:PostingLineInput){

@@ -70,6 +70,14 @@ export function FinancialView({
         >
           Tổn Thất Tiêu Hủy
         </button>
+        <button
+          onClick={() => setFinancialSubTab('planning')}
+          className={`px-4 py-2 border-b-2 whitespace-nowrap transition-colors ${
+            financialSubTab === 'planning' ? 'border-primary text-primary font-bold' : 'border-transparent text-on-surface-variant hover:bg-surface-container-low'
+          }`}
+        >
+          Dự Báo Bổ Hàng (ROP)
+        </button>
       </div>
 
       {/* SUB TAB: INVENTORY VALUATION (MAC) */}
@@ -370,13 +378,77 @@ export function FinancialView({
                   <td className="p-3 text-right text-error font-bold">3,864,000 ₫</td>
                   <td className="p-3 text-on-surface-variant font-body-md">Rơi vỡ vật lý khi xe nâng bốc xếp ô kệ</td>
                 </tr>
-                <tr className="bg-error/5">
+                <tr className="bg-error-container/5">
                   <td className="p-3 font-body-md font-semibold text-primary">SCRAP-2026-005 / 16-07</td>
                   <td className="p-3 font-body-md font-semibold">Aquafina 500ml Chai</td>
                   <td className="p-3 text-right text-error font-bold">40 Thùng</td>
                   <td className="p-3 text-right">98,000 ₫</td>
                   <td className="p-3 text-right text-error font-bold">3,920,000 ₫</td>
                   <td className="p-3 text-on-surface-variant font-body-md">Hết hạn sử dụng (Lô cận hạn cận biên FEFO)</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* SUB TAB: PLANNING (ROP RUN) */}
+      {financialSubTab === 'planning' && (
+        <div className="bg-white border border-outline-variant rounded-xl p-6 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-outline-variant pb-4">
+            <div>
+              <h3 className="font-bold text-sm text-primary">Kế Hoạch Bổ Hàng Tự Động (Reorder Point - ROP)</h3>
+              <p className="text-xs text-on-surface-variant mt-1">
+                Hệ thống tự động phân tích điểm đặt hàng tối thiểu, mức tồn an toàn (Safety Stock) để xuất đề xuất PO nháp gửi NCC.
+              </p>
+            </div>
+            <button
+              onClick={() => alert('Đã khởi chạy thuật toán ROP thành công! Đã quét 3 sản phẩm và lập 2 đề xuất Draft PO gửi tới Trung Tâm Duyệt Phiếu.')}
+              className="px-4 py-2 bg-primary text-on-primary rounded hover:bg-primary-container transition-colors font-bold text-xs flex items-center gap-1 shadow-sm"
+            >
+              <span className="material-symbols-outlined text-[18px]">insights</span>
+              Chạy Tính Toán ROP
+            </button>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-surface border-b border-outline-variant font-bold text-[10px] text-on-surface-variant uppercase">
+                <tr>
+                  <th className="p-3">Sản Phẩm SKU</th>
+                  <th className="p-3 text-right">Tồn Kho An Toàn (Safety Stock)</th>
+                  <th className="p-3 text-right">Tồn Khả Dụng Thực Tế (ATP)</th>
+                  <th className="p-3 text-right text-primary">Đề Xuất Nhập Thêm (Suggested Qty)</th>
+                  <th className="p-3 text-center">Trạng Thái ROP</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant font-data-mono">
+                <tr className="hover:bg-surface-bright transition-colors">
+                  <td className="p-3 font-semibold font-body-md text-on-surface">Tiger Crystal 330ml Can</td>
+                  <td className="p-3 text-right">1,500 Thùng</td>
+                  <td className="p-3 text-right text-tertiary font-bold">4,220 Thùng</td>
+                  <td className="p-3 text-right text-on-surface-variant">0 Thùng</td>
+                  <td className="p-3 text-center">
+                    <span className="inline-block bg-tertiary-fixed text-on-tertiary-fixed px-2 py-0.5 rounded font-bold text-[9px]">Tồn Kho Đầy Đủ</span>
+                  </td>
+                </tr>
+                <tr className="bg-error-container/10 hover:bg-surface-bright transition-colors">
+                  <td className="p-3 font-semibold font-body-md text-on-surface text-error">Heineken Silver 250ml Chai</td>
+                  <td className="p-3 text-right">1,000 Két</td>
+                  <td className="p-3 text-right text-error font-bold">150 Két</td>
+                  <td className="p-3 text-right font-bold text-primary">850 Két</td>
+                  <td className="p-3 text-center">
+                    <span className="inline-block bg-error-container text-on-error-container px-2 py-0.5 rounded font-bold text-[9px] animate-pulse">Cần Đặt Hàng</span>
+                  </td>
+                </tr>
+                <tr className="bg-error-container/10 hover:bg-surface-bright transition-colors">
+                  <td className="p-3 font-semibold font-body-md text-on-surface text-error">Coca Cola Classic 330ml Can</td>
+                  <td className="p-3 text-right">800 Thùng</td>
+                  <td className="p-3 text-right text-error font-bold">0 Thùng</td>
+                  <td className="p-3 text-right font-bold text-primary">1,200 Thùng</td>
+                  <td className="p-3 text-center">
+                    <span className="inline-block bg-error-container text-on-error-container px-2 py-0.5 rounded font-bold text-[9px] animate-pulse">Hết Hàng / Khẩn Cấp</span>
+                  </td>
                 </tr>
               </tbody>
             </table>

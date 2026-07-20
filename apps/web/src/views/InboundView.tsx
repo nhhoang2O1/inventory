@@ -14,6 +14,13 @@ interface InboundViewProps {
   setUploadedFiles: (files: string[]) => void;
   inboundSuccessMessage: string | null;
   handleConfirmReceipt: () => void;
+
+  purchaseOrders: any[];
+  selectedPoId: string;
+  setSelectedPoId: (id: string) => void;
+  locationsList: any[];
+  isLoading: boolean;
+  error: string | null;
 }
 
 export function InboundView({
@@ -28,21 +35,46 @@ export function InboundView({
   uploadedFiles,
   setUploadedFiles,
   inboundSuccessMessage,
-  handleConfirmReceipt
+  handleConfirmReceipt,
+
+  purchaseOrders,
+  selectedPoId,
+  setSelectedPoId,
+  locationsList,
+  isLoading,
+  error
 }: InboundViewProps) {
+  const activePo = purchaseOrders.find(po => po.id === selectedPoId);
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header Info */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h2 className="font-headline-md text-headline-md text-on-background font-bold">
-            Lập Phiếu Nhập Kho Từ PO:
-            <span className="font-data-mono text-primary ml-2 font-bold">PO-2026-07-4492</span>
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-headline-md text-headline-md text-on-background font-bold">
+              Lập Phiếu Nhập Kho Từ PO:
+            </h2>
+            {purchaseOrders.length > 0 ? (
+              <select
+                value={selectedPoId}
+                onChange={(e) => setSelectedPoId(e.target.value)}
+                className="px-3 py-1.5 border border-outline rounded bg-surface font-data-mono text-primary font-bold focus:outline-none"
+              >
+                {purchaseOrders.map((po) => (
+                  <option key={po.id} value={po.id}>
+                    {po.po_code} ({po.status})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-error font-semibold text-sm">Không có PO khả dụng cho kho này</span>
+            )}
+          </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3 text-xs">
             <span className="text-on-surface-variant">Nhà cung cấp: <strong>Heineken Vietnam N.V</strong></span>
             <span className="text-on-surface-variant">Nhân viên nhận: <strong>{operatorId}</strong></span>
-            <span className="text-on-surface-variant">Thời gian ca: <strong>18/07/2026 08:30 AM</strong></span>
+            <span className="text-on-surface-variant">Ngày PO: <strong>{activePo ? new Date(activePo.order_date).toLocaleDateString('vi-VN') : 'N/A'}</strong></span>
           </div>
         </div>
         <div>
@@ -52,6 +84,13 @@ export function InboundView({
           </span>
         </div>
       </div>
+
+      {error && (
+        <div className="bg-error-container/20 text-error p-4 rounded border border-error/30 flex items-center gap-2 font-semibold text-xs">
+          <span className="material-symbols-outlined">error</span>
+          {error}
+        </div>
+      )}
 
       {inboundSuccessMessage && (
         <div className="bg-tertiary-container/20 text-on-tertiary-container p-4 rounded border border-tertiary-container/30 flex items-center gap-2 font-semibold text-xs">
@@ -77,9 +116,10 @@ export function InboundView({
                 <tr>
                   <th className="p-3 font-semibold">SKU / Tên Sản Phẩm</th>
                   <th className="p-3 font-semibold w-28">Đơn Vị</th>
-                  <th className="p-3 font-semibold w-48 text-right">Số Nguyên Nhập (Thùng/Két)</th>
-                  <th className="p-3 font-semibold w-32">Số Lô (Batch)</th>
-                  <th className="p-3 font-semibold w-36">Hạn Dùng (MFG / EXP)</th>
+                  <th className="p-3 font-semibold w-44 text-right">Số Nguyên Nhập (Thùng/Két)</th>
+                  <th className="p-3 font-semibold w-28">Số Lô (Batch)</th>
+                  <th className="p-3 font-semibold w-28">NSX / HSD</th>
+                  <th className="p-3 font-semibold w-32">Vị Trí Lưu Trữ</th>
                   <th className="p-3 font-semibold w-12 text-center">Xóa</th>
                 </tr>
               </thead>
@@ -88,26 +128,26 @@ export function InboundView({
                   <tr key={index} className="hover:bg-surface-bright transition-colors group">
                     <td className="p-3">
                       <div className="font-data-mono text-primary font-bold">{item.sku}</div>
-                      <div className="text-on-surface-variant font-semibold truncate max-w-[200px]">{item.name}</div>
+                      <div className="text-on-surface-variant font-semibold truncate max-w-[150px]">{item.name}</div>
                     </td>
                     <td className="p-3 text-on-surface-variant font-semibold">{item.unit} (1:{item.ratio})</td>
                     <td className="p-3 text-right">
-                      <div className="flex items-center gap-2 justify-end">
+                      <div className="flex items-center gap-1.5 justify-end">
                         <input
-                          className="w-20 px-2 py-1 border border-outline-variant rounded text-right font-data-mono text-data-mono focus:border-secondary focus:ring-1 focus:ring-secondary outline-none"
+                          className="w-16 px-1.5 py-1 border border-outline-variant rounded text-right font-data-mono text-data-mono focus:border-secondary focus:ring-1 focus:ring-secondary outline-none"
                           type="number"
                           min="0"
                           value={item.qty}
                           onChange={(e) => handleInboundQtyChange(index, e.target.value)}
                         />
-                        <span className="text-[11px] text-on-surface-variant whitespace-nowrap bg-surface-container px-2 py-1 rounded font-data-mono">
-                          = {(item.qty * item.ratio).toLocaleString()} đơn vị lẻ
+                        <span className="text-[10px] text-on-surface-variant whitespace-nowrap bg-surface-container px-1.5 py-1 rounded font-data-mono">
+                          = {(item.qty * item.ratio).toLocaleString()} lẻ
                         </span>
                       </div>
                     </td>
                     <td className="p-3">
                       <input
-                        className="w-full px-2 py-1 border border-outline-variant rounded font-data-mono text-data-mono uppercase focus:border-secondary focus:ring-1 focus:ring-secondary outline-none"
+                        className="w-full px-1.5 py-1 border border-outline-variant rounded font-data-mono text-data-mono uppercase focus:border-secondary focus:ring-1 focus:ring-secondary outline-none text-xs"
                         type="text"
                         value={item.batch}
                         onChange={(e) => {
@@ -121,11 +161,11 @@ export function InboundView({
                       />
                     </td>
                     <td className="p-3">
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-1 text-[10px]">
                         <div className="flex items-center gap-1">
-                          <span className="text-[9px] text-outline w-6 font-bold">NSX:</span>
+                          <span className="text-outline w-7 font-bold">NSX:</span>
                           <input
-                            className="px-1 py-0.5 border border-outline-variant rounded text-[10px] text-on-surface-variant outline-none"
+                            className="px-1 py-0.5 border border-outline-variant rounded text-on-surface-variant outline-none"
                             type="date"
                             value={item.mfg}
                             onChange={(e) => {
@@ -139,9 +179,9 @@ export function InboundView({
                           />
                         </div>
                         <div className="flex items-center gap-1">
-                          <span className="text-[9px] text-outline w-6 font-bold">HSD:</span>
+                          <span className="text-outline w-7 font-bold">HSD:</span>
                           <input
-                            className="px-1 py-0.5 border border-outline-variant rounded text-[10px] text-on-surface-variant outline-none"
+                            className="px-1 py-0.5 border border-outline-variant rounded text-on-surface-variant outline-none"
                             type="date"
                             value={item.exp}
                             onChange={(e) => {
@@ -156,6 +196,26 @@ export function InboundView({
                         </div>
                       </div>
                     </td>
+                    <td className="p-3">
+                      <select
+                        value={item.locationId}
+                        onChange={(e) => {
+                          const updated = [...inboundItems];
+                          const currentItem = updated[index];
+                          if (currentItem) {
+                            currentItem.locationId = e.target.value;
+                          }
+                          setInboundItems(updated);
+                        }}
+                        className="w-full px-1.5 py-1 border border-outline-variant rounded font-semibold text-xs bg-surface outline-none"
+                      >
+                        {locationsList.map((loc) => (
+                          <option key={loc.id} value={loc.id}>
+                            {loc.code} ({loc.zone_code})
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td className="p-3 text-center">
                       <button
                         onClick={() => handleInboundRemoveLine(index)}
@@ -167,7 +227,7 @@ export function InboundView({
                   </tr>
                 ))}
                 <tr>
-                  <td colSpan={6} className="p-3">
+                  <td colSpan={7} className="p-3">
                     <button
                       onClick={handleInboundAddLine}
                       className="text-secondary hover:text-primary font-bold flex items-center gap-1 transition-colors"
@@ -211,11 +271,11 @@ export function InboundView({
                     className="w-full px-3 py-2 border border-outline-variant rounded-l bg-error-container/20 text-error outline-none font-data-mono text-data-mono text-right"
                     type="number"
                     readOnly
-                    value={Math.max(0, 100 - returnedCrateQty)}
+                    value={Math.max(0, inboundItems.reduce((sum, item) => sum + item.qty, 0) - returnedCrateQty)}
                   />
                   <span className="bg-surface-container-low border border-l-0 border-outline-variant px-3 py-2 rounded-r text-on-surface-variant font-bold">Két Vỏ</span>
                 </div>
-                <p className="text-[10px] text-on-surface-variant mt-1">Hệ số cọc định mức định biên: 100 Két (Heineken Original)</p>
+                <p className="text-[10px] text-on-surface-variant mt-1">Hệ số cọc định mức định biên: {inboundItems.reduce((sum, item) => sum + item.qty, 0)} Két</p>
               </div>
 
               <div className="pt-3 border-t border-outline-variant">
@@ -225,7 +285,7 @@ export function InboundView({
                   <input
                     className="w-full pl-8 pr-3 py-2 border border-outline-variant rounded focus:border-secondary focus:outline-none font-data-mono text-data-mono text-right font-bold text-secondary"
                     type="text"
-                    value={((100 - returnedCrateQty) * 50000).toLocaleString()}
+                    value={(Math.max(0, inboundItems.reduce((sum, item) => sum + item.qty, 0) - returnedCrateQty) * 50000).toLocaleString()}
                     readOnly
                   />
                 </div>
@@ -273,14 +333,24 @@ export function InboundView({
 
             <div className="mt-8 pt-4 border-t border-outline-variant space-y-3">
               <button
+                disabled={isLoading || purchaseOrders.length === 0}
                 onClick={handleConfirmReceipt}
-                className="w-full bg-primary hover:bg-primary-container text-on-primary py-3 rounded font-headline-sm text-headline-sm flex items-center justify-center gap-2 transition-colors shadow-sm font-bold"
+                className="w-full bg-primary hover:bg-primary-container disabled:bg-surface-container disabled:text-outline text-on-primary py-3 rounded font-headline-sm text-headline-sm flex items-center justify-center gap-2 transition-colors shadow-sm font-bold"
               >
-                <span className="material-symbols-outlined">check_circle</span>
-                Xác Nhận Hoàn Tất Nhập
+                {isLoading ? (
+                  <>
+                    <span className="animate-spin material-symbols-outlined">sync</span>
+                    Đang Ghi Nhập Kho...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined">check_circle</span>
+                    Xác Nhận Hoàn Tất Nhập
+                  </>
+                )}
               </button>
               <button
-                onClick={() => alert("Đã lưu bản nháp phiếu nhập PO-2026-07-4492.")}
+                onClick={() => alert("Đã lưu bản nháp phiếu nhập.")}
                 className="w-full bg-white border border-outline hover:bg-surface-bright text-on-surface-variant py-2 rounded text-xs font-bold transition-colors"
               >
                 Lưu Bản Nháp (Draft)

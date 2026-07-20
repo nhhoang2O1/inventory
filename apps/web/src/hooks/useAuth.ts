@@ -5,6 +5,10 @@ export function useAuth() {
   const [view, setView] = useState<ViewType>('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [selectedWarehouse, setSelectedWarehouse] = useState('Warehouse Alpha');
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
+  const [selectedWarehouseCode, setSelectedWarehouseCode] = useState('');
+  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [userId, setUserId] = useState('');
   const [username, setUsername] = useState('manager');
   const [password, setPassword] = useState('123456');
   const [userRole, setUserRole] = useState<UserRole>('Manager');
@@ -35,12 +39,15 @@ export function useAuth() {
       // Login successful
       setIsLoggedIn(true);
       setUserRole(data.userRole as UserRole);
+      setUserId(data.userId || '');
+      setWarehouses(data.warehouses || []);
 
       // Select first warehouse if returned, otherwise default
       if (data.warehouses && data.warehouses.length > 0) {
         setSelectedWarehouse(data.warehouses[0].name);
+        setSelectedWarehouseId(data.warehouses[0].id);
+        setSelectedWarehouseCode(data.warehouses[0].code);
       }
-
       setView('dashboard');
     } catch (err: any) {
       setLoginError(err.message || 'Đã xảy ra lỗi khi kết nối đến máy chủ.');
@@ -53,6 +60,10 @@ export function useAuth() {
     setIsLoggedIn(false);
     setView('login');
     setPassword('');
+    setUserId('');
+    setWarehouses([]);
+    setSelectedWarehouseId('');
+    setSelectedWarehouseCode('');
   };
 
   return {
@@ -61,6 +72,12 @@ export function useAuth() {
     isLoggedIn,
     selectedWarehouse,
     setSelectedWarehouse,
+    selectedWarehouseId,
+    setSelectedWarehouseId,
+    selectedWarehouseCode,
+    setSelectedWarehouseCode,
+    warehouses,
+    userId,
     username,
     setUsername,
     password,

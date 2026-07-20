@@ -159,6 +159,22 @@ export class PurchaseOrderService {
     };
   }
 
+  async list() {
+    return this.db.query<{
+      id: string;
+      po_code: string;
+      supplier_id: string;
+      status: string;
+      order_date: string;
+      expected_delivery_date: string;
+      created_by: string;
+    }>(
+      `SELECT id, po_code, supplier_id, status, order_date, expected_delivery_date, created_by
+       FROM purchasing.purchase_order
+       ORDER BY created_at DESC`
+    );
+  }
+
   async approve(actorId: string, id: string) {
     const poRows = await this.db.query<{ status: string }>(
       'SELECT status FROM purchasing.purchase_order WHERE id = $1',

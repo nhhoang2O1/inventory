@@ -1,5 +1,5 @@
-export type ViewType = 'login' | 'dashboard' | 'inbound' | 'outbound' | 'inventory' | 'financial' | 'approval';
-export type FinancialSubTab = 'valuation' | 'deposit' | 'leadtime' | 'reconciliation' | 'loss';
+export type ViewType = 'login' | 'dashboard' | 'inbound' | 'outbound' | 'inventory' | 'financial' | 'approval' | 'quality';
+export type FinancialSubTab = 'valuation' | 'deposit' | 'leadtime' | 'reconciliation' | 'loss' | 'planning';
 export type ApprovalTab = 'po' | 'adjustment' | 'exception';
 export type UserRole = 'Warehouse Staff' | 'Manager' | 'Sales' | 'Accountant';
 
@@ -12,6 +12,10 @@ export interface InboundItem {
   batch: string;
   mfg: string;
   exp: string;
+  skuId: string;
+  poLineId: string;
+  locationId: string;
+  uomId: string;
 }
 
 export interface OutboundItem {

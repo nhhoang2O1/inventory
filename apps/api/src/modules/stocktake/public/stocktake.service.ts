@@ -79,6 +79,18 @@ function nonNegativeWholeCase(value: number, name: string): number {
 export class StocktakeService {
   constructor(private readonly db: StocktakeDatabaseService) {}
 
+  async listSessions(actorId: string, warehouseId: string) {
+    if (!await this.db.hasAccess(actorId, 'STOCKTAKE.VIEW', warehouseId)) {
+      throw new ForbiddenException('Permission or warehouse scope denied');
+    }
+    return this.db.query(`
+      SELECT id, session_code, status, blind_count, recount_threshold, current_round, created_at
+      FROM stocktake.stocktake_session
+      WHERE warehouse_id = $1
+      ORDER BY created_at DESC
+    `, [warehouseId]);
+  }
+
   async createSession(actorId: string, input: CreateStocktakeInput, idempotencyKey: string, correlationId: string) {
     this.validateKey(idempotencyKey);
     await this.authorize(actorId, 'STOCKTAKE.CREATE', input.warehouseId);

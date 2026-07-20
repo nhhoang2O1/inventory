@@ -27,6 +27,12 @@ export class PurchaseOrderController {
     return this.service.create(actorId, body);
   }
 
+  @Get()
+  list(@Headers('x-actor-id') actor: string | undefined) {
+    requiredUuid(actor, 'actorId');
+    return this.service.list();
+  }
+
   @Get(':id')
   findOne(
     @Headers('x-actor-id') actor: string | undefined,

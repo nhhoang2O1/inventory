@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query, Req } from '@nestjs/common';
 import {
   TransferService,
   type CreateTransferInput,
@@ -38,6 +38,14 @@ function optionalQuantity(value: unknown, name: string): number | undefined {
 @Controller('transfers')
 export class TransferController {
   constructor(private readonly service: TransferService) {}
+
+  @Get()
+  list(
+    @Headers('x-actor-id') actor: string | undefined,
+    @Query('warehouseId') warehouseId: string | undefined
+  ) {
+    return this.service.listTransfers(requiredUuid(actor, 'actorId'), requiredUuid(warehouseId, 'warehouseId'));
+  }
 
   @Post()
   create(

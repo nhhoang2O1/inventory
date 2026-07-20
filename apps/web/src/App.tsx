@@ -8,6 +8,7 @@ import { OutboundView } from './views/OutboundView';
 import { InventoryView } from './views/InventoryView';
 import { FinancialView } from './views/FinancialView';
 import { ApprovalView } from './views/ApprovalView';
+import { QualityView } from './views/QualityView';
 
 // Import custom hooks (The ViewModel layer)
 import { useAuth } from './hooks/useAuth';
@@ -22,7 +23,7 @@ export function App() {
   const auth = useAuth();
 
   // 2. ViewModel: Inbound goods receiving states
-  const inbound = useInbound();
+  const inbound = useInbound(auth.userId, auth.selectedWarehouseId, auth.selectedWarehouseCode);
 
   // 3. ViewModel: Outbound picking states
   const outbound = useOutbound(auth.setView);
@@ -53,8 +54,16 @@ export function App() {
         {/* Top Header Bar */}
         {auth.isLoggedIn && (
           <Header
-            selectedWarehouse={auth.selectedWarehouse}
-            setSelectedWarehouse={auth.setSelectedWarehouse}
+            warehouses={auth.warehouses}
+            selectedWarehouseId={auth.selectedWarehouseId}
+            onWarehouseChange={(id) => {
+              auth.setSelectedWarehouseId(id);
+              const found = auth.warehouses.find(w => w.id === id);
+              if (found) {
+                auth.setSelectedWarehouse(found.name);
+                auth.setSelectedWarehouseCode(found.code);
+              }
+            }}
             operatorId={auth.username}
             userRole={auth.userRole}
           />
@@ -96,6 +105,12 @@ export function App() {
               setUploadedFiles={inbound.setUploadedFiles}
               inboundSuccessMessage={inbound.inboundSuccessMessage}
               handleConfirmReceipt={inbound.handleConfirmReceipt}
+              purchaseOrders={inbound.purchaseOrders}
+              selectedPoId={inbound.selectedPoId}
+              setSelectedPoId={inbound.setSelectedPoId}
+              locationsList={inbound.locationsList}
+              isLoading={inbound.isLoading}
+              error={inbound.error}
             />
           )}
 
@@ -117,6 +132,9 @@ export function App() {
               brandFilter={brandFilter}
               setBrandFilter={setBrandFilter}
               onRefresh={() => alert("Đã làm mới dữ liệu từ Database Core Sync.")}
+              actorId={auth.userId}
+              warehouseId={auth.selectedWarehouseId}
+              warehouseCode={auth.selectedWarehouseCode}
             />
           )}
 
@@ -140,6 +158,14 @@ export function App() {
               operatorId={auth.username}
               handleApproveRequest={approval.handleApproveRequest}
               handleRejectRequest={approval.handleRejectRequest}
+            />
+          )}
+
+          {auth.isLoggedIn && auth.view === 'quality' && (
+            <QualityView
+              actorId={auth.userId}
+              warehouseId={auth.selectedWarehouseId}
+              warehouseCode={auth.selectedWarehouseCode}
             />
           )}
         </main>

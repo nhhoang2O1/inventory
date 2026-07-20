@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query, Req } from '@nestjs/common';
 import { QualityService, type CreateDispositionInput, type CreateQualityCaseInput } from './quality.service.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -28,6 +28,22 @@ function positiveQuantity(value: unknown): number {
 @Controller('quality')
 export class QualityController {
   constructor(private readonly service: QualityService) {}
+
+  @Get('cases')
+  listCases(
+    @Headers('x-actor-id') actor: string | undefined,
+    @Query('warehouseId') warehouseId: string | undefined
+  ) {
+    return this.service.listCases(requiredUuid(actor, 'actorId'), requiredUuid(warehouseId, 'warehouseId'));
+  }
+
+  @Get('expiry-runs')
+  listExpiryRuns(
+    @Headers('x-actor-id') actor: string | undefined,
+    @Query('warehouseId') warehouseId: string | undefined
+  ) {
+    return this.service.listExpiryRuns(requiredUuid(actor, 'actorId'), requiredUuid(warehouseId, 'warehouseId'));
+  }
 
   @Post('cases')
   createCase(
