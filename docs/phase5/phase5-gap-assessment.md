@@ -1,29 +1,29 @@
-# Phase 5 gap assessment
+# Phase 5 completion assessment
 
-- Evaluated branch base: `main` at merge commit `768f737`
-- Phase 5 source commit: `e4abb97`
-- Evaluation date: 2026-07-19
+- Completion branch: `hoang`
+- Completion migration: `0016_phase5_completion.sql`
+- Re-evaluation date: 2026-07-20
 
-## Verified implementation
+## Closed gaps
 
-- Supplier master with standard lead-time days.
-- Purchase Order header/lines, approval transition and expected delivery date.
-- Goods Receipt header/lines, partial receipt and 10% over-receipt tolerance.
-- POSTED receipt calls Inventory Core movement in the same database transaction as document and PO quantity updates.
-- Inbound MRSL modes REJECT and QUARANTINE.
-- Integration test proves PO -> partial receipt -> inventory balance/ledger on PostgreSQL.
-- Phase 6 adds maintenance of `inventory.batch.first_received_date`, which is required for the FEFO receipt-date tie-break.
+1. Purchase Request supports multi-line create, submit, four-eyes approve/reject and PO conversion.
+2. Business calendars support weekend rules and date overrides. Supplier lead time produces working-day delivery schedules.
+3. Supplier, PR, PO, receipt and exception commands enforce server-side permissions; warehouse documents require an active warehouse scope.
+4. PO follows DRAFT → PENDING_APPROVAL → APPROVED → SENT → PARTIALLY_RECEIVED/RECEIVED → CLOSED with optimistic version checks.
+5. Goods Receipt follows DRAFT → RECEIVING → POSTED and posts only through `inventory.post_movement`.
+6. MRSL REJECT, QUARANTINE and ALLOW_WITH_APPROVAL are complete. Approved exceptions are four-eyes controlled and consumed exactly once.
+7. Configurable PO tolerance, the absolute 10% ceiling, and minimum inbound quantity exceptions are enforced.
+8. Delivery schedules store promised and accepted quantities and are the supplier KPI source record.
+9. Receipt create/post use `Idempotency-Key` and `platform.idempotency_record`; a payload mismatch is rejected.
+10. Phase 5 endpoints are documented and available in the web operations console.
 
-## Missing against the Phase 5 delivery plan
+## Verification evidence
 
-1. Purchase Request and its approval/conversion workflow are not implemented.
-2. Business calendar and DeliverySchedule are not implemented; expected delivery currently adds calendar days to order date rather than using PO sent/accepted time plus a business calendar.
-3. PO approve and inbound commands do not yet enforce the shared RBAC/warehouse-scope and four-eyes Approval contract.
-4. `ALLOW_WITH_APPROVAL` MRSL currently rejects with a message; it does not consume an approved exception request.
-5. Supplier KPI source data is not implemented.
-6. Phase 5 has no dedicated OpenAPI contract or operator UI.
-7. Goods Receipt creation carries its idempotency key in the request body rather than the standard header and canonical command record.
+- Fresh database migration from 0001 through 0016 succeeds.
+- The API and monorepo build gates succeed.
+- `phase5-completion-integration.test.mjs` proves working-day calculation, PR/PO four-eyes, schedules, idempotency, MRSL exception consumption, a two-batch/two-location partial receipt, ledger posting and a 60-case balance.
+- Static gates confirm Receiving does not write `inventory.inventory_balance` directly.
 
 ## Gate conclusion
 
-The implemented Phase 5 vertical slice compiles and its database integration test passes, so it supplies the inventory and batch data needed by Phase 6. It is not the complete Phase 5 Definition of Done and should not be described as release-ready until the missing items above are closed.
+The previously recorded Phase 5 gaps are closed. Phase 5 is a complete foundation for Phase 6 and later phases, subject to the normal deployment migration and environment-specific UAT.

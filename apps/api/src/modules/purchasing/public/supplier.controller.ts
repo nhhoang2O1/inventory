@@ -1,37 +1,13 @@
-import { Body, Controller, Get, Headers, Param, Post, BadRequestException } from '@nestjs/common';
-import { SupplierService } from './supplier.service.js';
-
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-function requiredUuid(value: string | undefined, name: string) {
-  if (!value || !uuid.test(value)) throw new BadRequestException(`${name} must be UUID`);
-  return value;
-}
-
+import { BadRequestException,Body,Controller,Get,Headers,Param,Post,Req } from '@nestjs/common';
+import { SupplierService,type SupplierInput } from './supplier.service.js';
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function id(value:string|undefined,name:string){if(!value||!uuid.test(value))throw new BadRequestException(`${name} must be UUID`);return value;}
 @Controller('suppliers')
-export class SupplierController {
-  constructor(private readonly service: SupplierService) {}
-
-  @Post()
-  create(
-    @Headers('x-actor-id') actor: string | undefined,
-    @Body() body: { code: string; name: string; phone?: string; standardLeadTimeDays: number }
-  ) {
-    requiredUuid(actor, 'actorId');
-    return this.service.create(body);
+export class SupplierController{
+  constructor(private readonly service:SupplierService){}
+  @Post()create(@Headers('x-actor-id')actor:string|undefined,@Req()req:{correlationId?:string},@Body()body:SupplierInput){
+    if(body.businessCalendarId)id(body.businessCalendarId,'businessCalendarId');return this.service.create(id(actor,'actorId'),body,id(req.correlationId,'correlationId'));
   }
-
-  @Get()
-  findAll(@Headers('x-actor-id') actor: string | undefined) {
-    requiredUuid(actor, 'actorId');
-    return this.service.findAll();
-  }
-
-  @Get(':id')
-  findOne(
-    @Headers('x-actor-id') actor: string | undefined,
-    @Param('id') id: string
-  ) {
-    requiredUuid(actor, 'actorId');
-    return this.service.findOne(requiredUuid(id, 'supplierId'));
-  }
+  @Get()findAll(@Headers('x-actor-id')actor:string|undefined){return this.service.findAll(id(actor,'actorId'));}
+  @Get(':id')findOne(@Headers('x-actor-id')actor:string|undefined,@Param('id')supplierId:string){return this.service.findOne(id(actor,'actorId'),id(supplierId,'supplierId'));}
 }
