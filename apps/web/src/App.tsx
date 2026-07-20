@@ -137,9 +137,9 @@ export function App() {
   }
 
   async function callPhase7(method: 'GET' | 'POST'): Promise<void> {
-    if (!['/transfers', '/stocktakes', '/reversals', '/quality', '/returns', '/recalls', '/planning', '/reports', '/integrations']
+    if (!['/suppliers', '/business-calendars', '/purchase-requests', '/purchase-orders', '/goods-receipts', '/receipt-exceptions', '/transfers', '/stocktakes', '/reversals', '/quality', '/returns', '/recalls', '/planning', '/reports', '/integrations']
       .some((prefix) => phase7Path.startsWith(prefix))) {
-      throw new Error('Endpoint phải thuộc Phase 7, Phase 8 hoặc Phase 9.');
+      throw new Error('Endpoint phải thuộc Phase 5, Phase 7, Phase 8 hoặc Phase 9.');
     }
     let body: JsonRecord | undefined;
     if (method === 'POST') {
@@ -217,8 +217,8 @@ export function App() {
 
       <section className="panel phase7-console" aria-labelledby="phase7-title">
         <div>
-          <p className="step">PHASE 7–9 · OPERATIONS, QUALITY, PLANNING & REPORTING</p>
-          <h2 id="phase7-title">Bảng điều khiển nghiệp vụ Phase 7–9</h2>
+          <p className="step">PHASE 5 & 7–9 · INBOUND, OPERATIONS, QUALITY, PLANNING & REPORTING</p>
+          <h2 id="phase7-title">Bảng điều khiển nghiệp vụ Phase 5 và Phase 7–9</h2>
           <p>Dùng Actor ID ở trên. POST tự tạo Idempotency-Key và Correlation ID mới.</p>
         </div>
         <label>Endpoint
@@ -232,6 +232,8 @@ export function App() {
           <button disabled={busy} onClick={() => void perform(() => callPhase7('POST'))}>POST lệnh</button>
         </div>
         <p className="endpoint-help">
+          Phase 5: <code>/suppliers</code>, <code>/business-calendars</code>, <code>/purchase-requests</code>,{' '}
+          <code>/purchase-orders</code>, <code>/goods-receipts</code> và <code>/receipt-exceptions</code>.{' '}
           Luồng chính: <code>/transfers</code> → approve → start-picking → pick → dispatch → receipts → close;{' '}
           <code>/stocktakes</code> → start → counts → complete-round → request-approval → approve → post-adjustment;{' '}
           <code>/reversals</code> → submit → approve → post.

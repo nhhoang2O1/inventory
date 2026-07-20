@@ -1,56 +1,10 @@
-import { Body, Controller, Get, Headers, Param, Post, BadRequestException, Req } from '@nestjs/common';
-import { GoodsReceiptService, type CreateGoodsReceiptInput } from './goods-receipt.service.js';
-
-const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-function requiredUuid(value: string | undefined, name: string) {
-  if (!value || !uuid.test(value)) throw new BadRequestException(`${name} must be UUID`);
-  return value;
-}
-
-@Controller('goods-receipts')
-export class GoodsReceiptController {
-  constructor(private readonly service: GoodsReceiptService) {}
-
-  @Post()
-  create(
-    @Headers('x-actor-id') actor: string | undefined,
-    @Body() body: CreateGoodsReceiptInput
-  ) {
-    const actorId = requiredUuid(actor, 'actorId');
-    requiredUuid(body.poId, 'poId');
-    if (!body.idempotencyKey?.trim()) {
-      throw new BadRequestException('idempotencyKey is required');
-    }
-    if (body.lines) {
-      for (const line of body.lines) {
-        requiredUuid(line.poLineId, 'poLineId');
-        requiredUuid(line.skuId, 'skuId');
-        requiredUuid(line.batchId, 'batchId');
-        requiredUuid(line.uomId, 'uomId');
-        requiredUuid(line.locationId, 'locationId');
-      }
-    }
-    return this.service.create(actorId, body);
-  }
-
-  @Get(':id')
-  findOne(
-    @Headers('x-actor-id') actor: string | undefined,
-    @Param('id') id: string
-  ) {
-    requiredUuid(actor, 'actorId');
-    return this.service.findOne(requiredUuid(id, 'goodsReceiptId'));
-  }
-
-  @Post(':id/post')
-  post(
-    @Headers('x-actor-id') actor: string | undefined,
-    @Param('id') id: string,
-    @Req() req: { correlationId: string },
-    @Body() body?: { reason?: string }
-  ) {
-    const actorId = requiredUuid(actor, 'actorId');
-    const correlationId = requiredUuid(req.correlationId, 'correlationId');
-    return this.service.post(actorId, requiredUuid(id, 'goodsReceiptId'), correlationId, body?.reason);
-  }
+import { BadRequestException,Body,Controller,Get,Headers,Param,Post,Req } from '@nestjs/common';
+import { GoodsReceiptService,type CreateGoodsReceiptInput } from './goods-receipt.service.js';
+const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function id(value:string|undefined,name:string){if(!value||!uuid.test(value))throw new BadRequestException(`${name} must be UUID`);return value;}function key(value:string|undefined){if(!value||value.length<16||value.length>128)throw new BadRequestException('Idempotency-Key must contain 16 to 128 characters');return value;}function version(value:unknown){if(!Number.isSafeInteger(value)||Number(value)<=0)throw new BadRequestException('expectedVersion must be a positive integer');return Number(value);}
+@Controller('goods-receipts')export class GoodsReceiptController{constructor(private readonly service:GoodsReceiptService){}
+  @Post()create(@Headers('x-actor-id')actor:string|undefined,@Headers('idempotency-key')k:string|undefined,@Req()req:{correlationId?:string},@Body()body:CreateGoodsReceiptInput){id(body.poId,'poId');id(body.warehouseId,'warehouseId');for(const line of body.lines??[]){id(line.poLineId,'poLineId');id(line.skuId,'skuId');id(line.batchId,'batchId');id(line.uomId,'uomId');id(line.locationId,'locationId');}return this.service.create(id(actor,'actorId'),body,key(k),id(req.correlationId,'correlationId'));}
+  @Get(':id')find(@Headers('x-actor-id')actor:string|undefined,@Param('id')receiptId:string){return this.service.findOne(id(actor,'actorId'),id(receiptId,'goodsReceiptId'));}
+  @Post(':id/confirm')confirm(@Headers('x-actor-id')actor:string|undefined,@Param('id')receiptId:string,@Req()req:{correlationId?:string},@Body()body:{expectedVersion?:number}){return this.service.confirm(id(actor,'actorId'),id(receiptId,'goodsReceiptId'),version(body.expectedVersion),id(req.correlationId,'correlationId'));}
+  @Post(':id/post')post(@Headers('x-actor-id')actor:string|undefined,@Headers('idempotency-key')k:string|undefined,@Param('id')receiptId:string,@Req()req:{correlationId?:string},@Body()body:{expectedVersion?:number;reason?:string}){return this.service.post(id(actor,'actorId'),id(receiptId,'goodsReceiptId'),version(body.expectedVersion),key(k),id(req.correlationId,'correlationId'),body.reason);}
 }

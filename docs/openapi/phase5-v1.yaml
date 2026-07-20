@@ -1,0 +1,103 @@
+openapi: 3.1.0
+info:
+  title: WMS Phase 5 Inbound API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+components:
+  parameters:
+    ActorId:
+      in: header
+      name: X-Actor-Id
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 128 }
+paths:
+  /suppliers:
+    get:
+      summary: List suppliers
+      parameters: [{ $ref: '#/components/parameters/ActorId' }]
+      responses: { '200': { description: Supplier list } }
+    post:
+      summary: Create audited supplier master data
+      parameters: [{ $ref: '#/components/parameters/ActorId' }]
+      responses: { '201': { description: Supplier created } }
+  /business-calendars:
+    get:
+      summary: List business calendars
+      parameters: [{ $ref: '#/components/parameters/ActorId' }]
+      responses: { '200': { description: Calendar list } }
+    post:
+      summary: Create business calendar
+      parameters: [{ $ref: '#/components/parameters/ActorId' }]
+      responses: { '201': { description: Calendar created } }
+  /business-calendars/{id}/days:
+    post:
+      summary: Set a working-date override
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Day configured } }
+  /purchase-requests:
+    post:
+      summary: Create a multi-line Purchase Request
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '201': { description: PR created } }
+  /purchase-requests/{id}/{action}:
+    post:
+      summary: Submit, approve or reject a Purchase Request
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { in: path, name: action, required: true, schema: { type: string, enum: [submit, approve, reject] } }
+      responses: { '200': { description: PR transitioned }, '409': { description: Version, state or four-eyes conflict } }
+  /purchase-requests/{id}/convert-to-po:
+    post:
+      summary: Convert an approved PR to a PO
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { in: path, name: id, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: PO created from PR } }
+  /purchase-orders:
+    post:
+      summary: Create PO and line delivery schedules
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '201': { description: PO created } }
+  /purchase-orders/{id}/{action}:
+    post:
+      summary: Submit, approve, send or close a PO
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { in: path, name: action, required: true, schema: { type: string, enum: [submit, approve, send, close] } }
+      responses: { '200': { description: PO transitioned }, '409': { description: Version, state or four-eyes conflict } }
+  /goods-receipts:
+    post:
+      summary: Create an idempotent Goods Receipt
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '201': { description: Receipt created }, '409': { description: Idempotency or validation conflict } }
+  /goods-receipts/{id}/confirm:
+    post:
+      summary: Confirm DRAFT receipt
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { in: path, name: id, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Receipt confirmed } }
+  /goods-receipts/{id}/post:
+    post:
+      summary: Post receipt through Inventory Core
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }, { in: path, name: id, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Receipt posted idempotently }, '409': { description: MRSL, quantity, state or version conflict } }
+  /receipt-exceptions:
+    post:
+      summary: Request a receiving exception
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      responses: { '201': { description: Exception requested } }
+  /receipt-exceptions/{id}/{action}:
+    post:
+      summary: Four-eyes approve or reject an exception
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+        - { in: path, name: action, required: true, schema: { type: string, enum: [approve, reject] } }
+      responses: { '200': { description: Exception decided }, '409': { description: Four-eyes, state or version conflict } }

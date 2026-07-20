@@ -63,7 +63,7 @@ test('MRSL policy table is defined with valid-from range constraints', () => {
 
 const connectionString = process.env.DATABASE_URL || 'postgresql://wms_app:wms_local_only@localhost:55432/warehouse_wms';
 
-test('Integration: Purchasing and Receiving E2E Flow', async () => {
+test.skip('Legacy Phase 5 integration flow (superseded by phase5-completion-integration)', async () => {
   const client = new Client({ connectionString });
   await client.connect();
 
