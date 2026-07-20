@@ -10,7 +10,7 @@ export function useAuth() {
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [userId, setUserId] = useState('');
   const [username, setUsername] = useState('manager');
-  const [password, setPassword] = useState('123456');
+  const [password, setPassword] = useState('');
   const [userRole, setUserRole] = useState<UserRole>('Manager');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,6 +57,12 @@ export function useAuth() {
   };
 
   const handleLogout = () => {
+    void fetch('/api/v1/iam/auth/logout', {
+      method: 'POST',
+      headers: {
+        'X-Correlation-Id': crypto.randomUUID ? crypto.randomUUID() : 'auth-logout-correlation-id'
+      }
+    });
     setIsLoggedIn(false);
     setView('login');
     setPassword('');

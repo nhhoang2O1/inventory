@@ -21,6 +21,8 @@
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "db:migrate": "npm run migrate --workspace @wms/database",
-    "db:migrate:status": "npm run migrate:status --workspace @wms/database"
+    "db:migrate:status": "npm run migrate:status --workspace @wms/database",
+    "phase10:gate": "node scripts/phase10-release-gate.mjs",
+    "phase10:smoke": "node scripts/phase10-smoke.mjs"
   }
 }

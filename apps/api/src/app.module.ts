@@ -14,6 +14,9 @@ import { RecallModule } from './modules/recall/public/recall.module.js';
 import { PlanningModule } from './modules/planning/public/planning.module.js';
 import { ReportingModule } from './modules/reporting/public/reporting.module.js';
 import { IntegrationModule } from './modules/integration/public/integration.module.js';
+import { APP_GUARD } from '@nestjs/core';
+import { AuthSessionGuard } from './modules/iam/public/auth-session.guard.js';
+import { ReleaseModule } from './modules/release/public/release.module.js';
 
 @Module({
   imports: [
@@ -31,7 +34,9 @@ import { IntegrationModule } from './modules/integration/public/integration.modu
     RecallModule,
     PlanningModule,
     ReportingModule,
-    IntegrationModule
-  ]
+    IntegrationModule,
+    ReleaseModule
+  ],
+  providers: [{ provide: APP_GUARD, useClass: AuthSessionGuard }]
 })
 export class AppModule {}

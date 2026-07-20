@@ -40,5 +40,17 @@ export class InventoryDatabaseService implements OnModuleDestroy {
     return rows[0]?.allowed ?? false;
   }
 
+  async hasPermission(actorId:string,permissionCode:string):Promise<boolean>{
+    const rows=await this.query<{allowed:boolean}>(`SELECT EXISTS(
+      SELECT 1 FROM iam.app_user user_account
+      JOIN iam.role role ON role.id=user_account.role_id AND role.status='ACTIVE'
+      JOIN iam.role_permission grant_record ON grant_record.role_id=role.id
+      JOIN iam.permission permission ON permission.id=grant_record.permission_id
+        AND permission.status='ACTIVE' AND permission.code=$2
+      WHERE user_account.id=$1 AND user_account.status='ACTIVE'
+    ) allowed`,[actorId,permissionCode]);
+    return rows[0]?.allowed??false;
+  }
+
   async onModuleDestroy(): Promise<void> { await this.pool.end(); }
 }

@@ -55,6 +55,22 @@ export class PurchaseOrderService{
   async findOne(actorId:string,id:string){const rows=await this.db.query<PoRow>('SELECT * FROM purchasing.purchase_order WHERE id=$1',[id]);const po=rows[0];if(!po)throw new NotFoundException('Purchase order not found');
     if(!po.warehouse_id||!await this.db.hasAccess(actorId,'PURCHASING.VIEW',po.warehouse_id))throw new ForbiddenException('PURCHASING.VIEW is required');return this.db.transaction((client)=>this.load(client,po));}
 
+  async findAll(actorId:string,warehouseId?:string){
+    if(warehouseId&&!await this.db.hasAccess(actorId,'PURCHASING.VIEW',warehouseId))throw new ForbiddenException('PURCHASING.VIEW is required');
+    return this.db.query(`SELECT DISTINCT po.id,po.po_code,po.supplier_id,po.warehouse_id,po.status,po.order_date,
+      po.expected_delivery_date,po.version,supplier.code supplier_code,supplier.name supplier_name
+      FROM purchasing.purchase_order po
+      JOIN purchasing.supplier supplier ON supplier.id=po.supplier_id
+      JOIN iam.user_warehouse_scope scope ON scope.user_id=$1 AND scope.warehouse_id=po.warehouse_id
+        AND scope.revoked_at IS NULL AND scope.valid_from<=now() AND(scope.valid_until IS NULL OR scope.valid_until>now())
+      JOIN iam.app_user user_account ON user_account.id=$1 AND user_account.status='ACTIVE'
+      JOIN iam.role_permission grant_record ON grant_record.role_id=user_account.role_id
+      JOIN iam.permission permission ON permission.id=grant_record.permission_id
+        AND permission.code='PURCHASING.VIEW' AND permission.status='ACTIVE'
+      WHERE($2::uuid IS NULL OR po.warehouse_id=$2)
+      ORDER BY po.order_date DESC,po.po_code`,[actorId,warehouseId??null]);
+  }
+
   async submit(actorId:string,id:string,expectedVersion:number,correlationId:string){return this.db.transaction(async(client)=>{const po=await this.lock(client,id);
     if(!po.warehouse_id||!await this.db.hasAccess(actorId,'PURCHASING.PO_CREATE',po.warehouse_id,client))throw new ForbiddenException('PURCHASING.PO_CREATE is required');
     if(po.created_by!==actorId)throw new ForbiddenException('Only the creator can submit this purchase order');this.state(po,'DRAFT',expectedVersion);

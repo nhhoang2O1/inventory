@@ -45,7 +45,7 @@ export function useInbound(actorId: string, warehouseId: string, warehouseCode: 
 
     Promise.all([
       // Fetch POs
-      fetch('/api/v1/purchase-orders', {
+      fetch(`/api/v1/purchase-orders?warehouseId=${warehouseId}`, {
         headers: { 'x-actor-id': actorId }
       }).then(res => res.json()),
 
@@ -190,6 +190,7 @@ export function useInbound(actorId: string, warehouseId: string, warehouseCode: 
             'x-actor-id': actorId
           },
           body: JSON.stringify({
+            warehouseId,
             skuId: item.skuId,
             batchCode: item.batch,
             manufacturingDate: item.mfg,
@@ -227,13 +228,15 @@ export function useInbound(actorId: string, warehouseId: string, warehouseCode: 
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-actor-id': actorId
+          'x-actor-id': actorId,
+          'Idempotency-Key': idempotencyKey,
+          'X-Correlation-Id': crypto.randomUUID()
         },
         body: JSON.stringify({
           grCode,
           poId: selectedPoId,
+          warehouseId,
           receivedDate: new Date().toISOString(),
-          idempotencyKey,
           lines: grLines
         })
       });
@@ -245,16 +248,31 @@ export function useInbound(actorId: string, warehouseId: string, warehouseCode: 
 
       const gr = await grRes.json();
 
-      // 3. Post/Confirm the Goods Receipt
-      const postRes = await fetch(`/api/v1/goods-receipts/${gr.id}/post`, {
+      // 3. Explicitly confirm DRAFT before POSTED.
+      const confirmRes = await fetch(`/api/v1/goods-receipts/${gr.id}/confirm`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-actor-id': actorId,
           'X-Correlation-Id': crypto.randomUUID ? crypto.randomUUID() : `corr-${Date.now()}`
-        }
+        },
+        body: JSON.stringify({expectedVersion:gr.version})
       });
 
+      if (!confirmRes.ok) {
+        const errorData = await confirmRes.json();
+        throw new Error(`Xác nhận phiếu nhập kho thất bại: ${errorData.message}`);
+      }
+      const confirmed=await confirmRes.json();
+      const postRes = await fetch(`/api/v1/goods-receipts/${gr.id}/post`, {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json','x-actor-id':actorId,
+          'Idempotency-Key':crypto.randomUUID(),
+          'X-Correlation-Id':crypto.randomUUID()
+        },
+        body:JSON.stringify({expectedVersion:confirmed.version,reason:'Warehouse UI confirmed receipt'})
+      });
       if (!postRes.ok) {
         const errorData = await postRes.json();
         throw new Error(`Đăng ký nhập kho (Post) thất bại: ${errorData.message}`);
@@ -262,7 +280,7 @@ export function useInbound(actorId: string, warehouseId: string, warehouseCode: 
 
       setInboundSuccessMessage(`Xác nhận nhập kho thành công! Đã ghi nhận phiếu ${grCode} và cập nhật tồn kho Available.`);
       // Refresh POs list
-      fetch('/api/v1/purchase-orders', {
+      fetch(`/api/v1/purchase-orders?warehouseId=${warehouseId}`, {
         headers: { 'x-actor-id': actorId }
       })
         .then(res => res.json())

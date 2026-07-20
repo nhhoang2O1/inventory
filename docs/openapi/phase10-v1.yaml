@@ -1,0 +1,126 @@
+openapi: 3.1.0
+info:
+  title: Warehouse WMS Phase 10 Security and Release API
+  version: 1.0.0
+servers:
+  - url: /api/v1
+paths:
+  /health:
+    get:
+      summary: Process liveness
+      responses:
+        '200':
+          description: API process is live
+  /health/ready:
+    get:
+      summary: Database and operational readiness
+      responses:
+        '200':
+          description: Migration head and all blocker counts are ready
+        '503':
+          description: Database, migration or operational state is not ready
+  /iam/auth/login:
+    post:
+      summary: Create a short-lived local-auth session
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Session created in an HttpOnly SameSite cookie
+        '401':
+          description: Invalid credentials
+        '429':
+          description: Failed-login threshold exceeded
+  /iam/auth/logout:
+    post:
+      summary: Revoke the current session
+      security:
+        - sessionCookie: []
+        - bearerSession: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Session revoked
+  /release/readiness:
+    get:
+      summary: Read operational release blockers
+      security:
+        - sessionCookie: []
+        - bearerSession: []
+      responses:
+        '200':
+          description: Readiness snapshot; requires RELEASE.VIEW
+  /release/gates:
+    get:
+      summary: List immutable evidence for a release version
+      security:
+        - sessionCookie: []
+        - bearerSession: []
+      parameters:
+        - name: releaseVersion
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Gate evidence; requires RELEASE.VIEW
+    post:
+      summary: Record immutable release evidence
+      security:
+        - sessionCookie: []
+        - bearerSession: []
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: { type: string, minLength: 16, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseGate'
+      responses:
+        '201':
+          description: Gate recorded; requires RELEASE.MANAGE
+        '409':
+          description: Idempotency key reused with a different request
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: wms_session
+    bearerSession:
+      type: http
+      scheme: bearer
+  parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    ReleaseGate:
+      type: object
+      required: [releaseVersion, environment, gateType, status]
+      properties:
+        releaseVersion: { type: string, minLength: 1 }
+        environment: { type: string, enum: [TEST, STAGING, PRODUCTION] }
+        gateType:
+          type: string
+          enum: [REGRESSION, MIGRATION_DRY_RUN, PERFORMANCE, SECURITY, BACKUP_RESTORE, UAT, RECONCILIATION, SMOKE, GO_NO_GO]
+        status: { type: string, enum: [PASSED, FAILED, BLOCKED] }
+        evidence: { type: object, additionalProperties: true }

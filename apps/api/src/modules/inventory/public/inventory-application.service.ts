@@ -37,6 +37,7 @@ export class InventoryApplicationService {
     return this.db.query('SELECT sku_id,batch_id,location_id,stock_status,quantity_on_hand,ledger_quantity,variance FROM inventory.ledger_balance_reconciliation WHERE warehouse_id=$1 ORDER BY abs(variance) DESC',[warehouseId]);
   }
   async skus(actorId: string) {
+    await this.authorizeGlobal(actorId,'CATALOG.VIEW');
     return this.db.query(`
       SELECT s.id, s.code, s.name, u.code as uom_code, ps.units_per_case as ratio
       FROM catalog.sku s
@@ -46,6 +47,7 @@ export class InventoryApplicationService {
     `);
   }
   async users(actorId: string) {
+    await this.authorizeGlobal(actorId,'IAM.USER_VIEW');
     return this.db.query(`
       SELECT id, username, display_name
       FROM iam.app_user
@@ -54,14 +56,17 @@ export class InventoryApplicationService {
     `);
   }
   async warehouses(actorId: string) {
+    await this.authorizeGlobal(actorId,'WAREHOUSE.VIEW');
     return this.db.query(`
-      SELECT id, code, name, status
-      FROM warehouse.warehouse
-      WHERE status = 'ACTIVE'
-      ORDER BY code ASC
-    `);
+      SELECT DISTINCT warehouse.id,warehouse.code,warehouse.name,warehouse.status
+      FROM warehouse.warehouse warehouse
+      JOIN iam.user_warehouse_scope scope ON scope.warehouse_id=warehouse.id
+      WHERE scope.user_id=$1 AND scope.revoked_at IS NULL AND scope.valid_from<=now()
+        AND(scope.valid_until IS NULL OR scope.valid_until>now()) AND warehouse.status='ACTIVE'
+      ORDER BY warehouse.code`,[actorId]);
   }
   async zones(actorId: string, warehouseId: string) {
+    await this.authorize(actorId,'INVENTORY.VIEW',warehouseId);
     return this.db.query(`
       SELECT id, code, name
       FROM warehouse.zone
@@ -70,6 +75,7 @@ export class InventoryApplicationService {
     `, [warehouseId]);
   }
   async locations(actorId: string, warehouseId: string) {
+    await this.authorize(actorId,'INVENTORY.VIEW',warehouseId);
     return this.db.query(`
       SELECT l.id, l.code, z.code as zone_code
       FROM warehouse.location l
@@ -79,6 +85,7 @@ export class InventoryApplicationService {
     `, [warehouseId]);
   }
   async batches(actorId: string, skuId: string) {
+    await this.authorizeGlobal(actorId,'CATALOG.VIEW');
     return this.db.query(`
       SELECT id, batch_code, manufacturing_date, expiration_date
       FROM inventory.batch
@@ -86,7 +93,11 @@ export class InventoryApplicationService {
       ORDER BY expiration_date ASC
     `, [skuId]);
   }
-  async findOrCreateBatch(actorId: string, input: { skuId: string; batchCode: string; manufacturingDate: string; expirationDate: string }) {
+  async findOrCreateBatch(actorId: string, input: { warehouseId:string;skuId: string; batchCode: string; manufacturingDate: string; expirationDate: string }) {
+    await this.authorize(actorId,'RECEIVING.CREATE',input.warehouseId);
+    if(!input.batchCode.trim())throw new ConflictException('Batch code is required');
+    if(Number.isNaN(Date.parse(input.manufacturingDate))||Number.isNaN(Date.parse(input.expirationDate))||
+      new Date(input.manufacturingDate)>=new Date(input.expirationDate))throw new ConflictException('Manufacturing date must be before expiration date');
     const existing = await this.db.query<{ id: string }>(
       'SELECT id FROM inventory.batch WHERE sku_id = $1 AND batch_code = $2',
       [input.skuId, input.batchCode.trim()]
@@ -168,5 +179,6 @@ export class InventoryApplicationService {
   }
 
   private async authorize(actorId:string,permission:string,warehouseId:string){if(!await this.db.hasAccess(actorId,permission,warehouseId))throw new ForbiddenException('Permission or warehouse scope denied');}
+  private async authorizeGlobal(actorId:string,permission:string){if(!await this.db.hasPermission(actorId,permission))throw new ForbiddenException('Permission denied');}
   private mapConflict(error:unknown):never {const message=error instanceof Error?error.message:'Inventory conflict';throw new ConflictException(message.includes('INVENTORY_')?message:'Inventory command conflict');}
 }

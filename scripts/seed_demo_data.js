@@ -300,10 +300,10 @@ async function seed() {
       const managerId = managerUserRes.rows[0].id;
 
       const poRes = await client.query(`
-        INSERT INTO purchasing.purchase_order (po_code, supplier_id, status, order_date, expected_delivery_date, created_by)
-        VALUES ($1, $2, 'APPROVED', $3, $4, $5)
+        INSERT INTO purchasing.purchase_order (po_code, supplier_id, warehouse_id, status, order_date, expected_delivery_date, created_by)
+        VALUES ($1, $2, $3, 'SENT', $4, $5, $6)
         RETURNING id
-      `, [poCode, supplierId, orderDate, deliveryDate, managerId]);
+      `, [poCode, supplierId, whId, orderDate, deliveryDate, managerId]);
       const poId = poRes.rows[0].id;
 
       // Lines

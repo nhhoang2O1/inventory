@@ -1,0 +1,37 @@
+/** @type {import('tailwindcss').Config} */
+module.exports={
+  content:['./index.html','./src/**/*.{ts,tsx}'],
+  darkMode:'class',
+  theme:{extend:{
+    colors:{
+      'primary-fixed-dim':'#adc7f7','on-secondary-container':'#00477f','primary-fixed':'#d6e3ff',
+      'on-tertiary-fixed-variant':'#00522f','on-background':'#181c1e','surface-tint':'#455f88',
+      'on-primary-container':'#86a0cd','on-tertiary-container':'#4bb278','on-primary-fixed-variant':'#2d476f',
+      error:'#ba1a1a','tertiary-fixed':'#91f8b8','on-tertiary-fixed':'#002110',primary:'#002045',
+      'tertiary-fixed-dim':'#74db9d','on-surface':'#181c1e','error-container':'#ffdad6',outline:'#74777f',
+      'outline-variant':'#c4c6cf','secondary-fixed-dim':'#a2c9ff','on-secondary-fixed-variant':'#004881',
+      'on-secondary-fixed':'#001c38','on-tertiary':'#ffffff',secondary:'#1960a3','surface-bright':'#f7fafc',
+      'surface-variant':'#e0e3e5','on-error-container':'#93000a','surface-container-low':'#f1f4f6',
+      'surface-container-lowest':'#ffffff',tertiary:'#002713','surface-dim':'#d7dadc',
+      'secondary-fixed':'#d3e4ff','primary-container':'#1a365d','inverse-on-surface':'#eef1f3',
+      'on-error':'#ffffff','on-surface-variant':'#43474e','inverse-surface':'#2d3133',
+      'on-primary-fixed':'#001b3c','on-secondary':'#ffffff',surface:'#f7fafc',background:'#f7fafc',
+      'secondary-container':'#7db6ff','surface-container-high':'#e5e9eb','surface-container':'#ebeef0',
+      'inverse-primary':'#adc7f7','tertiary-container':'#003f23','on-primary':'#ffffff',
+      'surface-container-highest':'#e0e3e5'
+    },
+    borderRadius:{DEFAULT:'0.125rem',lg:'0.25rem',xl:'0.5rem',full:'0.75rem'},
+    spacing:{'container-padding':'24px','grid-gutter':'16px',unit:'4px','density-comfortable':'16px','density-compact':'8px'},
+    fontFamily:{'body-md':['Inter','sans-serif'],'label-caps':['Inter','sans-serif'],'headline-md':['Inter','sans-serif'],
+      'headline-sm':['Inter','sans-serif'],'body-lg':['Inter','sans-serif'],'data-mono':['Inter','monospace'],
+      'display-lg':['Inter','sans-serif']},
+    fontSize:{'body-md':['14px',{lineHeight:'20px',fontWeight:'400'}],
+      'label-caps':['12px',{lineHeight:'16px',letterSpacing:'0.05em',fontWeight:'700'}],
+      'headline-md':['24px',{lineHeight:'32px',fontWeight:'600'}],
+      'headline-sm':['20px',{lineHeight:'28px',fontWeight:'600'}],
+      'body-lg':['16px',{lineHeight:'24px',fontWeight:'400'}],
+      'data-mono':['13px',{lineHeight:'18px',letterSpacing:'0.01em',fontWeight:'500'}],
+      'display-lg':['32px',{lineHeight:'40px',letterSpacing:'-0.02em',fontWeight:'700'}]}
+  }},
+  plugins:[]
+};
