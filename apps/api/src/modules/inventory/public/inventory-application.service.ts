@@ -151,10 +151,11 @@ export class InventoryApplicationService {
   async positions(actorId: string, warehouseId: string) {
     await this.authorize(actorId, 'INVENTORY.VIEW', warehouseId);
     return this.db.query(`
-      SELECT sku_code, sku_name, batch_code, stock_status, quantity_on_hand, expiration_date
-      FROM reporting.inventory_position
-      WHERE warehouse_id = $1
-      ORDER BY sku_code, expiration_date ASC
+      SELECT p.sku_id, p.sku_code, p.sku_name, p.batch_id, p.batch_code, p.stock_status, p.quantity_on_hand, p.expiration_date, p.location_id, l.code as location_code
+      FROM reporting.inventory_position p
+      LEFT JOIN warehouse.location l ON l.id = p.location_id
+      WHERE p.warehouse_id = $1
+      ORDER BY p.sku_code, p.expiration_date ASC
     `, [warehouseId]);
   }
 

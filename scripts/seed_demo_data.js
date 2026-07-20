@@ -135,7 +135,7 @@ async function seed() {
       await client.query(`
         INSERT INTO catalog.packaging_specification (sku_id, units_per_case, unit_volume_ml, gross_weight_kg, length_cm, width_cm, height_cm, valid_from)
         VALUES ($1, $2, $3, $4, 40.0, 30.0, 25.0, NOW() - interval '30 days')
-        ON CONFLICT (sku_id, valid_from) DO NOTHING
+        ON CONFLICT (sku_id) WHERE valid_until IS NULL DO UPDATE SET units_per_case = EXCLUDED.units_per_case
       `, [skus[s.code], s.code.includes('BTL') ? 20 : 24, s.volume, s.code.includes('BTL') ? 14.5 : 9.5]);
 
       // Barcode
@@ -147,7 +147,7 @@ async function seed() {
       await client.query(`
         INSERT INTO catalog.barcode (sku_id, value, symbology, valid_from)
         VALUES ($1, $2, 'EAN13', NOW() - interval '30 days')
-        ON CONFLICT (sku_id, value, valid_from) DO NOTHING
+        ON CONFLICT (value) WHERE valid_until IS NULL DO NOTHING
       `, [skus[s.code], barcodeVal]);
     }
 
@@ -233,7 +233,10 @@ async function seed() {
         { code: 'B-HN-ORIG-01', sku: 'SKU-HN-330-BTL', mfg: '2026-06-01', exp: '2027-06-01' },
         { code: 'B-TIG-CRYST-01', sku: 'SKU-TIG-330-CAN', mfg: '2026-06-01', exp: '2027-06-01' },
         { code: 'B-HN-SILVER-NEAR-EXP', sku: 'SKU-HN-330-CAN', mfg: '2025-10-01', exp: '2026-08-05' },
-        { code: 'B-HN-SILVER-EXP', sku: 'SKU-HN-330-CAN', mfg: '2025-06-01', exp: '2026-06-01' }
+        { code: 'B-HN-SILVER-EXP', sku: 'SKU-HN-330-CAN', mfg: '2025-06-01', exp: '2026-06-01' },
+        { code: 'B-COCA-320-01', sku: 'SKU-COCA-320-CAN', mfg: '2026-05-01', exp: '2027-05-01' },
+        { code: 'B-PEPSI-320-01', sku: 'SKU-PEPSI-320-CAN', mfg: '2026-05-01', exp: '2027-05-01' },
+        { code: 'B-TIG-CRYST-BTL-01', sku: 'SKU-TIG-330-BTL', mfg: '2026-06-01', exp: '2027-06-01' }
       ];
 
       for (const b of batches) {
@@ -245,47 +248,43 @@ async function seed() {
         `, [skus[b.sku], b.code, b.mfg, b.exp]);
         const batchId = bRes.rows[0]?.id || (await client.query('SELECT id FROM inventory.batch WHERE sku_id = $1 AND batch_code = $2', [skus[b.sku], b.code])).rows[0].id;
 
-        // Balances
-        if (b.code === 'B-HN-SILVER-01') {
-          // Available
-          await client.query(`
-            INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version)
-            VALUES ($1, $2, $3, $4, 'AVAILABLE', 250, 1)
-          `, [skus[b.sku], batchId, whId, locations['Z1-A12']]);
-          // Quarantined
-          await client.query(`
-            INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version)
-            VALUES ($1, $2, $3, $4, 'QUARANTINED', 50, 1)
-          `, [skus[b.sku], batchId, whId, locations['LOC-QUAR']]);
-          // Damaged
-          await client.query(`
-            INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version)
-            VALUES ($1, $2, $3, $4, 'DAMAGED', 15, 1)
-          `, [skus[b.sku], batchId, whId, locations['LOC-DAMG']]);
-        } else if (b.code === 'B-HN-ORIG-01') {
-          // Available
-          await client.query(`
-            INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version)
-            VALUES ($1, $2, $3, $4, 'AVAILABLE', 180, 1)
-          `, [skus[b.sku], batchId, whId, locations['Z2-B04']]);
-        } else if (b.code === 'B-TIG-CRYST-01') {
-          // Available
-          await client.query(`
-            INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version)
-            VALUES ($1, $2, $3, $4, 'AVAILABLE', 300, 1)
-          `, [skus[b.sku], batchId, whId, locations['Z3-C01']]);
-        } else if (b.code === 'B-HN-SILVER-NEAR-EXP') {
-          // Near Expiry Available
-          await client.query(`
-            INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version)
-            VALUES ($1, $2, $3, $4, 'AVAILABLE', 80, 1)
-          `, [skus[b.sku], batchId, whId, locations['Z1-A12']]);
-        } else if (b.code === 'B-HN-SILVER-EXP') {
-          // Expired
-          await client.query(`
-            INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version)
-            VALUES ($1, $2, $3, $4, 'EXPIRED', 30, 1)
-          `, [skus[b.sku], batchId, whId, locations['LOC-DAMG']]);
+        // Warehouse-specific Balances
+        if (whCode === 'KHO-A') {
+          if (b.code === 'B-HN-SILVER-01') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 250, 1)`, [skus[b.sku], batchId, whId, locations['Z1-A12']]);
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'QUARANTINED', 50, 1)`, [skus[b.sku], batchId, whId, locations['LOC-QUAR']]);
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'DAMAGED', 15, 1)`, [skus[b.sku], batchId, whId, locations['LOC-DAMG']]);
+          } else if (b.code === 'B-HN-ORIG-01') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 180, 1)`, [skus[b.sku], batchId, whId, locations['Z2-B04']]);
+          } else if (b.code === 'B-TIG-CRYST-01') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 300, 1)`, [skus[b.sku], batchId, whId, locations['Z3-C01']]);
+          } else if (b.code === 'B-HN-SILVER-NEAR-EXP') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 80, 1)`, [skus[b.sku], batchId, whId, locations['Z1-A12']]);
+          } else if (b.code === 'B-HN-SILVER-EXP') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'EXPIRED', 30, 1)`, [skus[b.sku], batchId, whId, locations['LOC-DAMG']]);
+          }
+        } else if (whCode === 'KHO-B') {
+          if (b.code === 'B-COCA-320-01') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 350, 1)`, [skus[b.sku], batchId, whId, locations['Z1-A12']]);
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'DAMAGED', 10, 1)`, [skus[b.sku], batchId, whId, locations['LOC-DAMG']]);
+          } else if (b.code === 'B-PEPSI-320-01') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 280, 1)`, [skus[b.sku], batchId, whId, locations['Z2-B04']]);
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'QUARANTINED', 25, 1)`, [skus[b.sku], batchId, whId, locations['LOC-QUAR']]);
+          } else if (b.code === 'B-TIG-CRYST-BTL-01') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 120, 1)`, [skus[b.sku], batchId, whId, locations['Z3-C01']]);
+          }
+        } else if (whCode === 'KHO-C') {
+          if (b.code === 'B-HN-SILVER-01') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 500, 1)`, [skus[b.sku], batchId, whId, locations['Z1-A12']]);
+          } else if (b.code === 'B-COCA-320-01') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 450, 1)`, [skus[b.sku], batchId, whId, locations['Z2-B04']]);
+          } else if (b.code === 'B-TIG-CRYST-01') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 600, 1)`, [skus[b.sku], batchId, whId, locations['Z3-C01']]);
+          } else if (b.code === 'B-HN-ORIG-01') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'QUARANTINED', 100, 1)`, [skus[b.sku], batchId, whId, locations['LOC-QUAR']]);
+          } else if (b.code === 'B-HN-SILVER-EXP') {
+            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'EXPIRED', 40, 1)`, [skus[b.sku], batchId, whId, locations['LOC-DAMG']]);
+          }
         }
       }
 
