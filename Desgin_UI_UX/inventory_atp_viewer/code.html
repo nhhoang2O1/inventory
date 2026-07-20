@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ATP Viewer - FMCG Warehouse</title>
+<!-- Fonts & Icons -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Theme Configuration -->
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#adc7f7",
+                        "on-secondary-container": "#00477f",
+                        "primary-fixed": "#d6e3ff",
+                        "on-tertiary-fixed-variant": "#00522f",
+                        "on-background": "#181c1e",
+                        "surface-tint": "#455f88",
+                        "on-primary-container": "#86a0cd",
+                        "on-tertiary-container": "#4bb278",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed": "#91f8b8",
+                        "on-tertiary-fixed": "#002110",
+                        "primary": "#002045",
+                        "tertiary-fixed-dim": "#74db9d",
+                        "on-surface": "#181c1e",
+                        "error-container": "#ffdad6",
+                        "outline-variant": "#c4c6cf",
+                        "secondary-fixed-dim": "#a2c9ff",
+                        "on-secondary-fixed-variant": "#004881",
+                        "on-secondary-fixed": "#001c38",
+                        "on-tertiary": "#ffffff",
+                        "secondary": "#1960a3",
+                        "surface-bright": "#f7fafc",
+                        "surface-variant": "#e0e3e5",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f1f4f6",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#002713",
+                        "surface-dim": "#d7dadc",
+                        "secondary-fixed": "#d3e4ff",
+                        "primary-container": "#1a365d",
+                        "outline": "#74777f",
+                        "inverse-on-surface": "#eef1f3",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#43474e",
+                        "inverse-surface": "#2d3133",
+                        "on-primary-fixed": "#001b3c",
+                        "on-secondary": "#ffffff",
+                        "surface": "#f7fafc",
+                        "background": "#f7fafc",
+                        "secondary-container": "#7db6ff",
+                        "surface-container-high": "#e5e9eb",
+                        "surface-container": "#ebeef0",
+                        "inverse-primary": "#adc7f7",
+                        "tertiary-container": "#003f23",
+                        "on-primary": "#ffffff",
+                        "surface-container-highest": "#e0e3e5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-padding": "24px",
+                        "grid-gutter": "16px",
+                        "unit": "4px",
+                        "density-comfortable": "16px",
+                        "density-compact": "8px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "data-mono": ["Inter"],
+                        "display-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "data-mono": ["13px", { "lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "500" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .material-symbols-outlined.fill {
+            font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Custom scrollbar for data grids */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: theme('colors.surface-container-low');
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: theme('colors.outline-variant');
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md text-body-md flex h-screen overflow-hidden selection:bg-primary-fixed selection:text-on-primary-fixed">
+<!-- SideNavBar (Shared Component) -->
+<nav class="fixed left-0 top-0 h-full w-[240px] z-50 bg-surface border-r border-outline-variant flex flex-col justify-between">
+<div class="flex flex-col h-screen overflow-y-auto">
+<!-- Header -->
+<div class="p-6 border-b border-outline-variant">
+<div class="flex items-center gap-3 mb-2">
+<img alt="User Profile Avatar" class="w-8 h-8 rounded-lg object-cover" data-alt="A stylized, modern geometric logo for a warehouse management system. The logo uses deep navy blues and sharp, precise lines conveying structure, logistics, and reliability. High-contrast, vector art style, flat design, white background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBx23l8mP5YICz83yeverlNcLdhG2aMK0HlLOsbxZWlBHqRB4vZdJylZc7PzGxS6i30V-OR8Iy7xvjKNjMoPSsrUPvfjIUKP_AsTt3APK0DfyBkoaZg45LMjhJWmIjs6pWuotDWDnRtKWeaIMF2O2s4dDBgYQgkqu5bXFDr5qnFJCbmlZf8vOaw780ojlWXWb7Ft4xiz__ByFycQbWaZj7gbZL4fwP7NoPrB3oi5MudZ5PXBeHADXOz"/>
+<div>
+<h1 class="font-headline-sm text-headline-sm text-primary">WMS Admin</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Primary Depot</p>
+</div>
+</div>
+</div>
+<!-- Main Navigation -->
+<div class="py-4 flex-1">
+<!-- Inactive Tab 0 -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<!-- Inactive Tab 1 -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">login</span>
+<span class="font-body-md text-body-md">Inbound</span>
+</a>
+<!-- Inactive Tab 2 -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">conveyor_belt</span>
+<span class="font-body-md text-body-md">Outbound</span>
+</a>
+<!-- Active Tab 3: Inventory maps to ATP Viewer -->
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container font-bold border-l-4 border-secondary" href="#">
+<span class="material-symbols-outlined fill">inventory_2</span>
+<span class="font-body-md text-body-md font-bold">Inventory</span>
+</a>
+<!-- Inactive Tab 4 -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-body-md text-body-md">Financial Reports</span>
+</a>
+<!-- Inactive Tab 5 -->
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors" href="#">
+<span class="material-symbols-outlined">rule</span>
+<span class="font-body-md text-body-md">Approval Center</span>
+</a>
+</div>
+<!-- Footer / CTA -->
+<div class="p-4 border-t border-outline-variant">
+<button class="w-full bg-primary text-on-primary py-2 px-4 rounded-lg font-label-caps text-label-caps hover:bg-primary-container transition-colors mb-4 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">add</span>
+                    New Entry
+                </button>
+<div class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md text-body-md">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-body-md text-body-md">Support</span>
+</a>
+</div>
+</div>
+</div>
+</nav>
+<!-- Main Workspace Area -->
+<div class="ml-[240px] flex-1 flex flex-col h-screen relative">
+<!-- TopAppBar (Shared Component) -->
+<header class="fixed top-0 right-0 w-[calc(100%-240px)] z-40 bg-surface-container-lowest border-b border-outline-variant flex justify-between items-center h-16 px-6">
+<div class="flex items-center gap-6">
+<span class="font-headline-md text-headline-md font-bold text-primary">FMCG Warehouse</span>
+<nav class="hidden lg:flex gap-4 ml-4">
+<a class="text-on-surface-variant hover:bg-surface-container-low rounded-lg px-3 py-1 font-body-md text-body-md transition-opacity" href="#">API: Healthy</a>
+<a class="text-primary font-bold border-b-2 border-primary pb-1 px-3 font-body-md text-body-md" href="#">DB Sync: Live</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<!-- Search Bar Placeholder -->
+<div class="hidden md:flex items-center bg-surface-container-low rounded-full px-4 py-1.5 border border-outline-variant focus-within:border-primary transition-colors">
+<span class="material-symbols-outlined text-outline text-sm">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-md font-body-md w-48 text-on-surface placeholder:text-outline ml-2" placeholder="Search SKU, Batch..." type="text"/>
+</div>
+<!-- Trailing Actions -->
+<span class="text-sm font-label-caps text-label-caps bg-primary-container text-on-primary-container px-2 py-1 rounded">Warehouse Alpha</span>
+<span class="text-sm font-label-caps text-label-caps bg-tertiary-container text-on-tertiary-container px-2 py-1 rounded">MFA Active</span>
+<div class="flex items-center gap-2 border-l border-outline-variant pl-4 ml-2">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors cursor-pointer active:opacity-70">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors cursor-pointer active:opacity-70">
+<span class="material-symbols-outlined">help</span>
+</button>
+<img alt="FMCG Brand Logo" class="w-8 h-8 rounded-full border border-outline-variant ml-2 object-cover" data-alt="A clean, professional circular logo for an FMCG brand featuring a stylized wheat and water motif in shades of deep blue and crisp white. High-quality vector rendering, isolated on a light gray background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCvEEva5dZ79F8mqxsGb2e1aTKoOSUr_HJPdbd2Weh51bSrnLZpn1tsGNGl8i_NTluXhBTsf4ogHLZgHKJO0mfH-Pu09bhSSOvttUmcf1VXLFUjBZfu2i7gkTBWwRmOjji4bMZawSY79BgJgSV-5HpQpRt2Igs0f-ElNkkywvgaOLEu3g1b-4PA7gLuCsx2PFkP-Kv8tM7h6SoqTTn7w8SWrXna9GeeT0qESz2Wd0tldfVLU1DsMbpF"/>
+</div>
+</div>
+</header>
+<!-- Page Content -->
+<main class="flex-1 overflow-y-auto mt-16 p-container-padding bg-background">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+<div>
+<h2 class="font-headline-md text-headline-md text-on-background mb-1">Available To Promise (ATP)</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Real-time inventory commitment viewer for Sales Staff.</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 border border-outline bg-surface text-on-surface rounded-lg hover:bg-surface-container-low transition-colors font-label-caps text-label-caps">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                        Export CSV
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary-container transition-colors font-label-caps text-label-caps">
+<span class="material-symbols-outlined text-[18px]">sync</span>
+                        Refresh Data
+                    </button>
+</div>
+</div>
+<!-- Filter Bar -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 mb-6 flex flex-wrap gap-4 items-end">
+<div class="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+<label class="font-label-caps text-label-caps text-on-surface-variant">Warehouse Location</label>
+<div class="relative">
+<select class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-3 py-2 pr-10 font-body-md text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary outline-none">
+<option>WH-Alpha (Main)</option>
+<option>WH-Beta (Secondary)</option>
+<option>All Locations</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-outline">arrow_drop_down</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+<label class="font-label-caps text-label-caps text-on-surface-variant">Brand Filter</label>
+<div class="relative">
+<select class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-3 py-2 pr-10 font-body-md text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary outline-none">
+<option>All Brands</option>
+<option>Tiger</option>
+<option>Heineken</option>
+<option>Coca-Cola</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-outline">arrow_drop_down</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+<label class="font-label-caps text-label-caps text-on-surface-variant">Category</label>
+<div class="relative">
+<select class="w-full appearance-none bg-surface border border-outline-variant rounded-lg px-3 py-2 pr-10 font-body-md text-body-md focus:border-secondary focus:ring-1 focus:ring-secondary outline-none">
+<option>All Categories</option>
+<option>Beer</option>
+<option>Soft Drink</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-outline">arrow_drop_down</span>
+</div>
+</div>
+<div class="flex-none">
+<button class="h-10 px-4 border border-outline text-on-surface rounded-lg hover:bg-surface-container-low transition-colors font-label-caps text-label-caps flex items-center justify-center">
+                        Clear Filters
+                    </button>
+</div>
+</div>
+<!-- Data Grid (Bento/Card Wrapper) -->
+<div class="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col shadow-sm">
+<!-- Table Wrapper for Scroll -->
+<div class="overflow-x-auto custom-scrollbar">
+<table class="w-full text-left border-collapse min-w-[900px]">
+<thead class="bg-surface-container-low border-b border-outline-variant sticky top-0 z-10">
+<tr>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-on-surface-variant font-semibold">SKU Details</th>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-on-surface-variant font-semibold text-right">Sellable On-hand<br/><span class="text-[10px] font-normal opacity-70">Cartons / (Can/Bottle)</span></th>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-on-surface-variant font-semibold text-right">Active Reservation<br/><span class="text-[10px] font-normal opacity-70">Cartons</span></th>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-primary font-bold text-right bg-primary-fixed/20">ATP<br/><span class="text-[10px] font-normal opacity-80">Cartons / (Can/Bottle)</span></th>
+<th class="p-density-compact px-4 font-label-caps text-label-caps text-on-surface-variant font-semibold text-center">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1: High Stock -->
+<tr class="hover:bg-surface-container-highest transition-colors group">
+<td class="p-density-compact px-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-surface-container-high border border-outline-variant flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-outline">sports_bar</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-medium text-on-surface">Tiger Crystal 330ml Can</p>
+<p class="font-data-mono text-data-mono text-on-surface-variant text-xs">SKU: TG-CRY-330C-24</p>
+</div>
+</div>
+</td>
+<td class="p-density-compact px-4 text-right">
+<div class="font-data-mono text-data-mono text-on-surface">5,420 <span class="text-xs text-on-surface-variant ml-1">CTN</span></div>
+<div class="font-data-mono text-data-mono text-xs text-secondary mt-0.5">130,080 <span class="text-[10px]">CAN</span></div>
+</td>
+<td class="p-density-compact px-4 text-right">
+<div class="font-data-mono text-data-mono text-on-surface-variant">1,200 <span class="text-xs ml-1">CTN</span></div>
+</td>
+<td class="p-density-compact px-4 text-right bg-primary-fixed/5 group-hover:bg-primary-fixed/10 transition-colors">
+<div class="font-data-mono text-data-mono text-primary font-bold text-[15px]">4,220 <span class="text-xs ml-1">CTN</span></div>
+<div class="font-data-mono text-data-mono text-xs text-secondary font-medium mt-0.5">101,280 <span class="text-[10px]">CAN</span></div>
+</td>
+<td class="p-density-compact px-4 text-center">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-tertiary-container text-on-tertiary-container font-label-caps text-[10px]">Available</span>
+</td>
+</tr>
+<!-- Row 2: Low Stock (Warning) -->
+<tr class="hover:bg-surface-container-highest transition-colors group bg-error-container/10">
+<td class="p-density-compact px-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-surface-container-high border border-outline-variant flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-outline">local_drink</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-medium text-on-surface">Heineken Silver 250ml Bottle</p>
+<p class="font-data-mono text-data-mono text-on-surface-variant text-xs">SKU: HK-SIL-250B-20</p>
+</div>
+</div>
+</td>
+<td class="p-density-compact px-4 text-right">
+<div class="font-data-mono text-data-mono text-on-surface">850 <span class="text-xs text-on-surface-variant ml-1">CTN</span></div>
+<div class="font-data-mono text-data-mono text-xs text-secondary mt-0.5">17,000 <span class="text-[10px]">BOTTLE</span></div>
+</td>
+<td class="p-density-compact px-4 text-right">
+<div class="font-data-mono text-data-mono text-on-surface-variant">700 <span class="text-xs ml-1">CTN</span></div>
+</td>
+<td class="p-density-compact px-4 text-right bg-primary-fixed/5 group-hover:bg-primary-fixed/10 transition-colors">
+<!-- Highlighted Low ATP -->
+<div class="font-data-mono text-data-mono text-on-error-container font-bold text-[15px]">150 <span class="text-xs ml-1">CTN</span></div>
+<div class="font-data-mono text-data-mono text-xs text-on-error-container font-medium mt-0.5">3,000 <span class="text-[10px]">BOTTLE</span></div>
+</td>
+<td class="p-density-compact px-4 text-center">
+<!-- Using error-container for 'Amber/Low Stock' as per style rules falling back to theme colors -->
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-error-container text-on-error-container font-label-caps text-[10px]">Low Stock</span>
+</td>
+</tr>
+<!-- Row 3: Critical Stock -->
+<tr class="hover:bg-surface-container-highest transition-colors group bg-error/5">
+<td class="p-density-compact px-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-surface-container-high border border-outline-variant flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-outline">sports_bar</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-medium text-on-surface">Bia Viet 330ml Can</p>
+<p class="font-data-mono text-data-mono text-on-surface-variant text-xs">SKU: BV-REG-330C-24</p>
+</div>
+</div>
+</td>
+<td class="p-density-compact px-4 text-right">
+<div class="font-data-mono text-data-mono text-on-surface">1,020 <span class="text-xs text-on-surface-variant ml-1">CTN</span></div>
+<div class="font-data-mono text-data-mono text-xs text-secondary mt-0.5">24,480 <span class="text-[10px]">CAN</span></div>
+</td>
+<td class="p-density-compact px-4 text-right">
+<div class="font-data-mono text-data-mono text-on-surface-variant">1,020 <span class="text-xs ml-1">CTN</span></div>
+</td>
+<td class="p-density-compact px-4 text-right bg-primary-fixed/5 group-hover:bg-primary-fixed/10 transition-colors">
+<!-- Highlighted Critical ATP -->
+<div class="font-data-mono text-data-mono text-error font-black text-[15px]">0 <span class="text-xs ml-1">CTN</span></div>
+<div class="font-data-mono text-data-mono text-xs text-error font-medium mt-0.5">0 <span class="text-[10px]">CAN</span></div>
+</td>
+<td class="p-density-compact px-4 text-center">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-error text-on-error font-label-caps text-[10px]">Critical</span>
+</td>
+</tr>
+<!-- Row 4: Normal Stock -->
+<tr class="hover:bg-surface-container-highest transition-colors group">
+<td class="p-density-compact px-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded bg-surface-container-high border border-outline-variant flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-outline">water_drop</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-medium text-on-surface">Aquafina 500ml PET</p>
+<p class="font-data-mono text-data-mono text-on-surface-variant text-xs">SKU: AQ-PET-500B-24</p>
+</div>
+</div>
+</td>
+<td class="p-density-compact px-4 text-right">
+<div class="font-data-mono text-data-mono text-on-surface">12,500 <span class="text-xs text-on-surface-variant ml-1">CTN</span></div>
+<div class="font-data-mono text-data-mono text-xs text-secondary mt-0.5">300,000 <span class="text-[10px]">BOTTLE</span></div>
+</td>
+<td class="p-density-compact px-4 text-right">
+<div class="font-data-mono text-data-mono text-on-surface-variant">4,500 <span class="text-xs ml-1">CTN</span></div>
+</td>
+<td class="p-density-compact px-4 text-right bg-primary-fixed/5 group-hover:bg-primary-fixed/10 transition-colors">
+<div class="font-data-mono text-data-mono text-primary font-bold text-[15px]">8,000 <span class="text-xs ml-1">CTN</span></div>
+<div class="font-data-mono text-data-mono text-xs text-secondary font-medium mt-0.5">192,000 <span class="text-[10px]">BOTTLE</span></div>
+</td>
+<td class="p-density-compact px-4 text-center">
+<span class="inline-flex items-center px-2 py-1 rounded-full bg-tertiary-container text-on-tertiary-container font-label-caps text-[10px]">Available</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination / Footer of Grid -->
+<div class="border-t border-outline-variant p-3 bg-surface flex justify-between items-center text-on-surface-variant font-data-mono text-data-mono">
+<div>Showing 1-4 of 1,248 SKUs</div>
+<div class="flex gap-2">
+<button class="p-1 rounded hover:bg-surface-container-high disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined text-[20px]">chevron_left</span>
+</button>
+<button class="p-1 rounded hover:bg-surface-container-high">
+<span class="material-symbols-outlined text-[20px]">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

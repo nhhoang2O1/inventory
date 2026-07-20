@@ -99,6 +99,34 @@ function quantity(value: number, name = 'quantity'): number {
 export class QualityService {
   constructor(private readonly db: QualityDatabaseService) {}
 
+  async listCases(actorId: string, warehouseId: string) {
+    await this.authorize(actorId, 'QUALITY.VIEW', warehouseId);
+    return this.db.query(`
+      SELECT qc.id, qc.case_code, qc.case_type, qc.status, qc.reason, qc.created_at,
+             qcl.id AS case_line_id, qcl.sku_id, sku.sku_code, sku.name AS sku_name, qcl.batch_id, batch.batch_code,
+             qcl.quantity::int AS quantity, qcl.source_location_id AS location_id, loc.location_code,
+             qd.disposition_type
+      FROM quality.quality_case qc
+      LEFT JOIN quality.quality_case_line qcl ON qcl.quality_case_id = qc.id
+      LEFT JOIN catalog.sku sku ON sku.id = qcl.sku_id
+      LEFT JOIN inventory.batch batch ON batch.id = qcl.batch_id
+      LEFT JOIN warehouse.location loc ON loc.id = qcl.source_location_id
+      LEFT JOIN quality.quality_disposition qd ON qd.quality_case_id = qc.id
+      WHERE qc.warehouse_id = $1
+      ORDER BY qc.created_at DESC
+    `, [warehouseId]);
+  }
+
+  async listExpiryRuns(actorId: string, warehouseId: string) {
+    await this.authorize(actorId, 'QUALITY.EXPIRY', warehouseId);
+    return this.db.query(`
+      SELECT er.id, er.business_date, er.expired_line_count, er.created_at, er.quality_case_id
+      FROM quality.expiry_run er
+      WHERE er.warehouse_id = $1
+      ORDER BY er.created_at DESC
+    `, [warehouseId]);
+  }
+
   async createCase(actorId: string, input: CreateQualityCaseInput, idempotencyKey: string, correlationId: string) {
     this.validateKey(idempotencyKey);
     await this.authorize(actorId, 'QUALITY.CREATE', input.warehouseId);

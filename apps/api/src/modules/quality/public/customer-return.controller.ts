@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query, Req } from '@nestjs/common';
 import { CustomerReturnService, type CreateCustomerReturnInput } from './customer-return.service.js';
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -21,6 +21,14 @@ function expectedVersion(value: unknown): number {
 @Controller('returns')
 export class CustomerReturnController {
   constructor(private readonly service: CustomerReturnService) {}
+
+  @Get()
+  list(
+    @Headers('x-actor-id') actor: string | undefined,
+    @Query('warehouseId') warehouseId: string | undefined
+  ) {
+    return this.service.list(requiredUuid(actor, 'actorId'), requiredUuid(warehouseId, 'warehouseId'));
+  }
 
   @Post()
   create(

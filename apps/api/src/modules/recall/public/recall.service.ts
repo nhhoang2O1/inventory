@@ -56,6 +56,20 @@ function normalizeCode(value: string): string {
 export class RecallService {
   constructor(private readonly db: RecallDatabaseService) {}
 
+  async listRecalls(actorId: string, warehouseId: string) {
+    await this.authorize(actorId, 'RECALL.VIEW', warehouseId);
+    return this.db.query(`
+      SELECT DISTINCT rc.id, rc.recall_code, rc.severity, rc.reason, rc.status, rc.created_at,
+             sku.sku_code, sku.name AS sku_name, batch.batch_code
+      FROM recall.recall_case rc
+      JOIN recall.recall_scope rs ON rs.recall_case_id = rc.id
+      JOIN catalog.sku sku ON sku.id = rc.sku_id
+      JOIN inventory.batch batch ON batch.id = rc.batch_id
+      WHERE rs.warehouse_id = $1
+      ORDER BY rc.created_at DESC
+    `, [warehouseId]);
+  }
+
   async create(actorId: string, input: CreateRecallInput, idempotencyKey: string, correlationId: string) {
     this.validateKey(idempotencyKey);
     const recallCode = normalizeCode(input.recallCode);

@@ -69,6 +69,19 @@ function wholeCase(value: number): number {
 export class CustomerReturnService {
   constructor(private readonly db: QualityDatabaseService) {}
 
+  async list(actorId: string, warehouseId: string) {
+    if (!await this.db.hasAccess(actorId, 'RETURN.VIEW', warehouseId)) {
+      throw new ForbiddenException('Permission or warehouse scope denied');
+    }
+    return this.db.query(`
+      SELECT cr.id, cr.return_code, cr.customer_reference, cr.reason, cr.status, cr.created_at, cr.quality_case_id,
+             coalesce((SELECT sum(quantity::int) FROM quality.customer_return_line WHERE customer_return_id = cr.id), 0)::int as total_qty
+      FROM quality.customer_return cr
+      WHERE cr.warehouse_id = $1
+      ORDER BY cr.created_at DESC
+    `, [warehouseId]);
+  }
+
   async create(actorId: string, input: CreateCustomerReturnInput, idempotencyKey: string, correlationId: string) {
     this.validateKey(idempotencyKey);
     await this.authorize(actorId, 'RETURN.CREATE', input.warehouseId);

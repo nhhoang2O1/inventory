@@ -101,6 +101,22 @@ function hashCommand(value: unknown): string {
 export class TransferService {
   constructor(private readonly db: TransferDatabaseService) {}
 
+  async listTransfers(actorId: string, warehouseId: string) {
+    if (!await this.db.hasAccess(actorId, 'INVENTORY.VIEW', warehouseId)) {
+      throw new ForbiddenException('Permission or warehouse scope denied');
+    }
+    return this.db.query(`
+      SELECT st.id, st.transfer_code, st.transfer_type, st.status, st.version, st.created_at,
+             w_src.name AS source_warehouse_name, w_dest.name AS destination_warehouse_name,
+             coalesce((SELECT sum(planned_quantity) FROM transfer.stock_transfer_line WHERE stock_transfer_id = st.id), 0)::int as total_qty
+      FROM transfer.stock_transfer st
+      JOIN warehouse.warehouse w_src ON w_src.id = st.source_warehouse_id
+      JOIN warehouse.warehouse w_dest ON w_dest.id = st.destination_warehouse_id
+      WHERE st.source_warehouse_id = $1 OR st.destination_warehouse_id = $1
+      ORDER BY st.created_at DESC
+    `, [warehouseId]);
+  }
+
   async createTransfer(
     actorId: string,
     input: CreateTransferInput,

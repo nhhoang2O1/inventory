@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Inventory Valuation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed": "#001b3c",
+                    "on-error": "#ffffff",
+                    "inverse-surface": "#2d3133",
+                    "tertiary-fixed": "#91f8b8",
+                    "on-tertiary-fixed": "#002110",
+                    "on-secondary": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "secondary": "#1960a3",
+                    "secondary-fixed": "#d3e4ff",
+                    "surface-tint": "#455f88",
+                    "primary": "#002045",
+                    "outline": "#74777f",
+                    "surface-dim": "#d7dadc",
+                    "surface-container-low": "#f1f4f6",
+                    "surface": "#f7fafc",
+                    "on-tertiary": "#ffffff",
+                    "surface-variant": "#e0e3e5",
+                    "on-primary-container": "#86a0cd",
+                    "background": "#f7fafc",
+                    "tertiary-fixed-dim": "#74db9d",
+                    "secondary-container": "#7db6ff",
+                    "surface-container": "#ebeef0",
+                    "on-error-container": "#93000a",
+                    "tertiary": "#002713",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-fixed-dim": "#adc7f7",
+                    "outline-variant": "#c4c6cf",
+                    "error": "#ba1a1a",
+                    "surface-bright": "#f7fafc",
+                    "on-tertiary-container": "#4bb278",
+                    "secondary-fixed-dim": "#a2c9ff",
+                    "on-surface-variant": "#43474e",
+                    "surface-container-high": "#e5e9eb",
+                    "on-tertiary-fixed-variant": "#00522f",
+                    "on-secondary-fixed-variant": "#004881",
+                    "on-primary-fixed-variant": "#2d476f",
+                    "on-background": "#181c1e",
+                    "inverse-primary": "#adc7f7",
+                    "surface-container-highest": "#e0e3e5",
+                    "on-secondary-fixed": "#001c38",
+                    "on-secondary-container": "#00477f",
+                    "on-primary": "#ffffff",
+                    "tertiary-container": "#003f23",
+                    "primary-container": "#1a365d",
+                    "inverse-on-surface": "#eef1f3",
+                    "on-surface": "#181c1e",
+                    "primary-fixed": "#d6e3ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "grid-gutter": "16px",
+                    "unit": "4px",
+                    "density-compact": "8px",
+                    "density-comfortable": "16px",
+                    "container-padding": "24px"
+            },
+            "fontFamily": {
+                    "label-caps": [
+                            "Inter"
+                    ],
+                    "body-lg": [
+                            "Inter"
+                    ],
+                    "headline-sm": [
+                            "Inter"
+                    ],
+                    "body-md": [
+                            "Inter"
+                    ],
+                    "display-lg": [
+                            "Inter"
+                    ],
+                    "headline-md": [
+                            "Inter"
+                    ],
+                    "data-mono": [
+                            "Inter"
+                    ]
+            },
+            "fontSize": {
+                    "label-caps": [
+                            "12px",
+                            {
+                                    "lineHeight": "16px",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "body-lg": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "headline-sm": [
+                            "20px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "body-md": [
+                            "14px",
+                            {
+                                    "lineHeight": "20px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "display-lg": [
+                            "32px",
+                            {
+                                    "lineHeight": "40px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "700"
+                            }
+                    ],
+                    "headline-md": [
+                            "24px",
+                            {
+                                    "lineHeight": "32px",
+                                    "fontWeight": "600"
+                            }
+                    ],
+                    "data-mono": [
+                            "13px",
+                            {
+                                    "lineHeight": "18px",
+                                    "letterSpacing": "0.01em",
+                                    "fontWeight": "500"
+                            }
+                    ]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+          font-variation-settings:
+          'FILL' 0,
+          'wght' 400,
+          'GRAD' 0,
+          'opsz' 24
+        }
+        .filled-icon {
+             font-variation-settings: 'FILL' 1;
+        }
+        
+        /* Custom scrollbar for data grids */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f4f6; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #c4c6cf; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #74777f; 
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen">
+<!-- SideNavBar -->
+<nav class="fixed left-0 top-0 h-full w-[240px] z-50 bg-surface dark:bg-background border-r border-outline-variant dark:border-outline flex flex-col overflow-y-auto">
+<div class="p-6 border-b border-outline-variant">
+<h1 class="font-display-lg text-display-lg font-black text-primary dark:text-primary-fixed mb-1">WMS Admin</h1>
+<p class="font-body-md text-body-md text-on-surface-variant">Primary Depot</p>
+</div>
+<div class="px-4 py-6">
+<button class="w-full bg-secondary hover:bg-secondary/90 text-on-secondary font-headline-sm text-headline-sm py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+<span class="material-symbols-outlined filled-icon">add</span>
+                New Entry
+            </button>
+</div>
+<ul class="flex-1 px-2 space-y-1">
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors font-headline-sm text-headline-sm rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span>Dashboard</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors font-headline-sm text-headline-sm rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="login">login</span>
+<span>Inbound</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors font-headline-sm text-headline-sm rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="conveyor_belt">conveyor_belt</span>
+<span>Outbound</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors font-headline-sm text-headline-sm rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="inventory_2">inventory_2</span>
+<span>Inventory</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container dark:bg-on-secondary-container dark:text-secondary-fixed font-bold border-l-4 border-secondary rounded-r-lg font-headline-sm text-headline-sm" href="#">
+<span class="material-symbols-outlined filled-icon" data-icon="analytics">analytics</span>
+<span>Financial Reports</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors font-headline-sm text-headline-sm rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="rule">rule</span>
+<span>Approval Center</span>
+</a>
+</li>
+</ul>
+<div class="mt-auto p-4 border-t border-outline-variant">
+<ul class="space-y-1">
+<li>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors font-body-md text-body-md rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span>Settings</span>
+</a>
+</li>
+<li>
+<a class="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high transition-colors font-body-md text-body-md rounded-lg" href="#">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+<span>Support</span>
+</a>
+</li>
+</ul>
+</div>
+</nav>
+<!-- TopAppBar -->
+<header class="fixed top-0 right-0 w-[calc(100%-240px)] z-40 bg-surface-container-lowest dark:bg-surface-container border-b border-outline-variant dark:border-outline flex justify-between items-center h-16 px-6">
+<div class="flex items-center gap-6">
+<h2 class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed">FMCG Warehouse</h2>
+<div class="hidden lg:flex items-center bg-surface-container-low rounded-lg px-3 py-1.5 border border-outline-variant focus-within:border-secondary focus-within:border-2 transition-all">
+<span class="material-symbols-outlined text-outline mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-body-md font-body-md w-64 p-0 text-on-surface placeholder:text-outline" placeholder="Search SKU, brand..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden xl:flex gap-4 mr-4">
+<a class="text-on-surface-variant dark:text-surface-variant font-body-md text-body-md hover:bg-surface-container-low dark:hover:bg-surface-container-high rounded-lg px-3 py-1.5 transition-colors" href="#">API: Healthy</a>
+<a class="text-on-surface-variant dark:text-surface-variant font-body-md text-body-md hover:bg-surface-container-low dark:hover:bg-surface-container-high rounded-lg px-3 py-1.5 transition-colors" href="#">DB Sync: Live</a>
+</div>
+<div class="flex items-center gap-2">
+<span class="font-label-caps text-label-caps bg-primary-container text-on-primary-container px-2 py-1 rounded">Warehouse Alpha</span>
+<span class="font-label-caps text-label-caps bg-tertiary-container text-on-tertiary-container px-2 py-1 rounded">MFA Active</span>
+</div>
+<div class="flex items-center gap-2 border-l border-outline-variant pl-4 ml-2">
+<button class="p-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-error rounded-full border-2 border-surface-container-lowest"></span>
+</button>
+<button class="p-2 rounded-lg text-on-surface-variant hover:bg-surface-container-low transition-colors relative">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<button class="ml-2 w-8 h-8 rounded-full overflow-hidden border border-outline">
+<img alt="FMCG Brand Logo" class="w-full h-full object-cover" data-alt="A small, professional corporate avatar placeholder image with a solid navy blue background and a minimalist white building icon, suitable for an FMCG warehouse management system top app bar." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA_IEGNrDYzcEM0dofTCn4-VLyASUd6vQvDcCRD4fQx_mFctgoLAmIoWGIPaXVxmpyfNOpICHmlVok1kNh26cF67Wdxbw__iI_rxGlVmlyeM0kqJRy9skw3NTk9uutODsaezrO-xeA1h0NBML2NUDEaUnZ4-6FBDT_cbr6bpZ12KYsbUNwOGW5OckEaPTC2BrTJDN9VkVW4NjzOnxK3papT3kdnNS0ztxzInpw3TRUi1lccYwNz7BCT"/>
+</button>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-[240px] mt-16 p-container-padding bg-background min-h-[calc(100vh-64px)]">
+<div class="max-w-[1600px] mx-auto space-y-6">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-outline-variant">
+<div>
+<h1 class="font-display-lg text-display-lg font-bold text-on-surface mb-2">Inventory Valuation</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">calculate</span>
+                        Moving Average Cost Method - As of Today.
+                    </p>
+</div>
+<div class="flex flex-wrap gap-3">
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-outline rounded-lg text-secondary font-headline-sm text-headline-sm hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined">download</span>
+                        Export CSV
+                    </button>
+<button class="flex items-center gap-2 px-4 py-2 bg-secondary text-on-secondary rounded-lg font-headline-sm text-headline-sm hover:bg-secondary/90 transition-colors">
+<span class="material-symbols-outlined filled-icon">print</span>
+                        Print Report
+                    </button>
+</div>
+</div>
+<!-- Summary KPI Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-grid-gutter">
+<!-- Total Value -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 shadow-sm">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-1">TOTAL INVENTORY VALUE</p>
+<h3 class="font-display-lg text-display-lg font-bold text-on-surface">45.2B <span class="text-headline-sm text-outline">VNĐ</span></h3>
+</div>
+<div class="p-3 bg-secondary-container rounded-lg text-on-secondary-container">
+<span class="material-symbols-outlined filled-icon text-[28px]">account_balance</span>
+</div>
+</div>
+<div class="flex items-center gap-2 text-tertiary">
+<span class="material-symbols-outlined text-[16px] filled-icon">trending_up</span>
+<span class="font-data-mono text-data-mono">+2.4% vs Last Month</span>
+</div>
+</div>
+<!-- Available Value -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 shadow-sm border-l-4 border-l-tertiary-container">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-1">AVAILABLE VALUE</p>
+<h3 class="font-headline-md text-headline-md font-bold text-on-surface">42.8B <span class="text-body-lg text-outline">VNĐ</span></h3>
+</div>
+<div class="p-2 bg-tertiary-container/20 rounded-lg text-tertiary-container">
+<span class="material-symbols-outlined filled-icon">check_circle</span>
+</div>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-1.5 mt-4">
+<div class="bg-tertiary-container h-1.5 rounded-full" style="width: 94%"></div>
+</div>
+<p class="font-data-mono text-data-mono text-on-surface-variant mt-2 text-right">94.7% of Total</p>
+</div>
+<!-- Quarantine Value -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 shadow-sm border-l-4 border-l-surface-tint">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-1">QUARANTINE VALUE</p>
+<h3 class="font-headline-md text-headline-md font-bold text-on-surface">1.9B <span class="text-body-lg text-outline">VNĐ</span></h3>
+</div>
+<div class="p-2 bg-surface-tint/20 rounded-lg text-surface-tint">
+<span class="material-symbols-outlined filled-icon">inventory_2</span>
+</div>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-1.5 mt-4">
+<div class="bg-surface-tint h-1.5 rounded-full" style="width: 4%"></div>
+</div>
+<p class="font-data-mono text-data-mono text-on-surface-variant mt-2 text-right">4.2% of Total</p>
+</div>
+<!-- Expired/Damaged Value -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 shadow-sm border-l-4 border-l-error">
+<div class="flex justify-between items-start mb-4">
+<div>
+<p class="font-label-caps text-label-caps text-on-surface-variant mb-1">EXPIRED / WRITE-OFF</p>
+<h3 class="font-headline-md text-headline-md font-bold text-on-surface">0.5B <span class="text-body-lg text-outline">VNĐ</span></h3>
+</div>
+<div class="p-2 bg-error-container rounded-lg text-on-error-container">
+<span class="material-symbols-outlined filled-icon">warning</span>
+</div>
+</div>
+<div class="w-full bg-surface-variant rounded-full h-1.5 mt-4">
+<div class="bg-error h-1.5 rounded-full" style="width: 1%"></div>
+</div>
+<p class="font-data-mono text-data-mono text-on-surface-variant mt-2 text-right">1.1% of Total</p>
+</div>
+</div>
+</div>
+</main>
+</body></html>

@@ -8,8 +8,16 @@ function quantity(value:unknown){if(!Number.isSafeInteger(value)||Number(value)<
 @Controller('inventory')
 export class InventoryController {
   constructor(private readonly service:InventoryApplicationService){}
+  @Get('skus') skus(@Headers('x-actor-id') actor:string|undefined){return this.service.skus(requiredUuid(actor,'actorId'));}
+  @Get('users') users(@Headers('x-actor-id') actor:string|undefined){return this.service.users(requiredUuid(actor,'actorId'));}
+  @Get('warehouses') warehouses(@Headers('x-actor-id') actor:string|undefined){return this.service.warehouses(requiredUuid(actor,'actorId'));}
+  @Get('zones') zones(@Headers('x-actor-id') actor:string|undefined,@Query('warehouseId') warehouse:string|undefined){return this.service.zones(requiredUuid(actor,'actorId'),requiredUuid(warehouse,'warehouseId'));}
+  @Get('locations') locations(@Headers('x-actor-id') actor:string|undefined,@Query('warehouseId') warehouse:string|undefined){return this.service.locations(requiredUuid(actor,'actorId'),requiredUuid(warehouse,'warehouseId'));}
+  @Get('batches') batches(@Headers('x-actor-id') actor:string|undefined,@Query('skuId') sku:string|undefined){return this.service.batches(requiredUuid(actor,'actorId'),requiredUuid(sku,'skuId'));}
+  @Post('batches') findOrCreateBatch(@Headers('x-actor-id') actor:string|undefined,@Body() body:{skuId:string;batchCode:string;manufacturingDate:string;expirationDate:string}){return this.service.findOrCreateBatch(requiredUuid(actor,'actorId'),body);}
   @Get('atp') atp(@Headers('x-actor-id') actor:string|undefined,@Query('skuId') sku:string|undefined,@Query('warehouseId') warehouse:string|undefined){return this.service.atp(requiredUuid(actor,'actorId'),requiredUuid(sku,'skuId'),requiredUuid(warehouse,'warehouseId'));}
   @Get('balances') balances(@Headers('x-actor-id') actor:string|undefined,@Query('warehouseId') warehouse:string|undefined,@Query('skuId') sku:string|undefined){return this.service.balances(requiredUuid(actor,'actorId'),requiredUuid(warehouse,'warehouseId'),sku?requiredUuid(sku,'skuId'):undefined);}
+  @Get('positions') positions(@Headers('x-actor-id') actor:string|undefined,@Query('warehouseId') warehouse:string|undefined){return this.service.positions(requiredUuid(actor,'actorId'),requiredUuid(warehouse,'warehouseId'));}
   @Get('reservations') reservations(@Headers('x-actor-id') actor:string|undefined,@Query('warehouseId') warehouse:string|undefined,@Query('skuId') sku:string|undefined){return this.service.reservations(requiredUuid(actor,'actorId'),requiredUuid(warehouse,'warehouseId'),sku?requiredUuid(sku,'skuId'):undefined);}
   @Get('in-transit') inTransit(@Headers('x-actor-id') actor:string|undefined,@Query('warehouseId') warehouse:string|undefined){return this.service.inTransit(requiredUuid(actor,'actorId'),requiredUuid(warehouse,'warehouseId'));}
   @Get('reconciliation') reconciliation(@Headers('x-actor-id') actor:string|undefined,@Query('warehouseId') warehouse:string|undefined){return this.service.reconciliation(requiredUuid(actor,'actorId'),requiredUuid(warehouse,'warehouseId'));}

@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Financial Reports - WMS</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed-dim": "#adc7f7",
+                        "on-secondary-container": "#00477f",
+                        "primary-fixed": "#d6e3ff",
+                        "on-tertiary-fixed-variant": "#00522f",
+                        "on-background": "#181c1e",
+                        "surface-tint": "#455f88",
+                        "on-primary-container": "#86a0cd",
+                        "on-tertiary-container": "#4bb278",
+                        "on-primary-fixed-variant": "#2d476f",
+                        "error": "#ba1a1a",
+                        "tertiary-fixed": "#91f8b8",
+                        "on-tertiary-fixed": "#002110",
+                        "primary": "#002045",
+                        "tertiary-fixed-dim": "#74db9d",
+                        "on-surface": "#181c1e",
+                        "error-container": "#ffdad6",
+                        "outline-variant": "#c4c6cf",
+                        "secondary-fixed-dim": "#a2c9ff",
+                        "on-secondary-fixed-variant": "#004881",
+                        "on-secondary-fixed": "#001c38",
+                        "on-tertiary": "#ffffff",
+                        "secondary": "#1960a3",
+                        "surface-bright": "#f7fafc",
+                        "surface-variant": "#e0e3e5",
+                        "on-error-container": "#93000a",
+                        "surface-container-low": "#f1f4f6",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary": "#002713",
+                        "surface-dim": "#d7dadc",
+                        "secondary-fixed": "#d3e4ff",
+                        "primary-container": "#1a365d",
+                        "outline": "#74777f",
+                        "inverse-on-surface": "#eef1f3",
+                        "on-error": "#ffffff",
+                        "on-surface-variant": "#43474e",
+                        "inverse-surface": "#2d3133",
+                        "on-primary-fixed": "#001b3c",
+                        "on-secondary": "#ffffff",
+                        "surface": "#f7fafc",
+                        "background": "#f7fafc",
+                        "secondary-container": "#7db6ff",
+                        "surface-container-high": "#e5e9eb",
+                        "surface-container": "#ebeef0",
+                        "inverse-primary": "#adc7f7",
+                        "tertiary-container": "#003f23",
+                        "on-primary": "#ffffff",
+                        "surface-container-highest": "#e0e3e5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "container-padding": "24px",
+                        "grid-gutter": "16px",
+                        "unit": "4px",
+                        "density-comfortable": "16px",
+                        "density-compact": "8px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "headline-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "data-mono": ["Inter"],
+                        "display-lg": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "700" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "data-mono": ["13px", { "lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "500" }],
+                        "display-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .gantt-bar-planned { background-color: theme('colors.secondary-container'); }
+        .gantt-bar-actual { background-color: theme('colors.primary'); }
+        .gantt-bar-delayed { background-color: theme('colors.error'); }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md antialiased overflow-hidden flex h-screen">
+<!-- SideNavBar (Shared Component) -->
+<nav class="bg-surface dark:bg-background text-secondary dark:text-secondary-fixed-dim fixed left-0 top-0 h-full w-[240px] z-50 bg-surface dark:bg-background border-r border-outline-variant dark:border-outline flat no shadows flex flex-col h-screen overflow-y-auto hidden md:flex">
+<div class="p-6 pb-4 border-b border-outline-variant">
+<h1 class="font-display-lg text-display-lg font-black text-primary dark:text-primary-fixed mb-1">WMS Admin</h1>
+<div class="flex items-center gap-3 mt-4">
+<img alt="User Profile Avatar" class="w-10 h-10 rounded-full object-cover border border-outline-variant" data-alt="A clean, modern corporate headshot of a warehouse manager in a well-lit office, wearing professional attire. Bright light mode aesthetic, sharp focus, professional photography style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB88n17mXLTV2FZEEkPTSQgvSpi6KIxbWenKL8t7NTXsElM1DOwF-WscUXvw9MvuXEPFVdvMxCAwiUH_Q03JJLRWS3ZAF8192btTQoW6FY0oEpnzc1DRjwM4Sqrz9op6UaE-veNXJ058nYcqxYK4s2_LQbY_1jbJXvpxQSF1JG0NhGr2MPTqN9WpWBYE2VlAvzIKoIcV9WqSq_pGvVPwrKSWhnpr08A5vwxu6uD4Md2Z9Rjw9mQWAZ3"/>
+<div>
+<p class="font-label-caps text-label-caps text-on-surface">Primary Depot</p>
+</div>
+</div>
+<button class="w-full mt-6 bg-primary text-on-primary py-2 px-4 rounded font-label-caps text-label-caps hover:bg-primary-container transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">add</span>
+                New Entry
+            </button>
+</div>
+<div class="flex-1 py-4 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-caps text-label-caps">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined">login</span>
+<span class="font-label-caps text-label-caps">Inbound</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined">conveyor_belt</span>
+<span class="font-label-caps text-label-caps">Outbound</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-label-caps text-label-caps">Inventory</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-secondary-container text-on-secondary-container dark:bg-on-secondary-container dark:text-secondary-fixed font-bold border-l-4 border-secondary transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-label-caps text-label-caps">Financial Reports</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined">rule</span>
+<span class="font-label-caps text-label-caps">Approval Center</span>
+</a>
+</div>
+<div class="mt-auto border-t border-outline-variant py-4 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-caps text-label-caps">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high transition-colors transition-all duration-200 active:scale-95" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-caps text-label-caps">Support</span>
+</a>
+</div>
+</nav>
+<!-- TopAppBar (Shared Component) -->
+<header class="bg-surface-container-lowest dark:bg-surface-container text-primary dark:text-primary-fixed fixed top-0 right-0 w-full md:w-[calc(100%-240px)] z-40 bg-white dark:bg-surface-container border-b border-outline-variant dark:border-outline flat no shadows flex justify-between items-center h-16 px-6">
+<div class="flex items-center gap-4">
+<div class="font-headline-md text-headline-md font-bold text-primary dark:text-primary-fixed hidden md:block">FMCG Warehouse</div>
+<div class="relative flex items-center ml-4">
+<span class="material-symbols-outlined absolute left-3 text-outline">search</span>
+<input class="pl-10 pr-4 py-1.5 bg-surface border border-outline-variant rounded focus:border-secondary focus:ring-1 focus:ring-secondary text-body-md w-64 transition-all" placeholder="Search inventory, POs..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden lg:flex items-center gap-4">
+<a class="text-on-surface-variant dark:text-surface-variant font-label-caps text-label-caps hover:bg-surface-container-low dark:hover:bg-surface-container-high rounded-lg px-2 py-1 transition-opacity active:opacity-70" href="#">API: Healthy</a>
+<a class="text-on-surface-variant dark:text-surface-variant font-label-caps text-label-caps hover:bg-surface-container-low dark:hover:bg-surface-container-high rounded-lg px-2 py-1 transition-opacity active:opacity-70" href="#">DB Sync: Live</a>
+</div>
+<div class="flex items-center gap-2 border-l border-outline-variant pl-6">
+<div class="flex flex-col items-end mr-2 hidden sm:flex">
+<span class="font-label-caps text-label-caps text-on-surface">Warehouse Alpha</span>
+<span class="text-[10px] text-tertiary-container font-semibold bg-tertiary-fixed px-1.5 rounded-sm">MFA Active</span>
+</div>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors relative">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-low rounded-full transition-colors">
+<span class="material-symbols-outlined">help</span>
+</button>
+<img alt="FMCG Brand Logo" class="w-8 h-8 rounded border border-outline-variant object-cover ml-2" data-alt="FMCG Brand Logo. Clean, modern, minimalist logo design suitable for a warehouse or logistics company. Blue and white color scheme, flat design." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAawxNMJTISsmo5xY0x4JzjWKxuF_7L4RvO0Tpmsp1PbtwYZT5PD2QxfYKdPj-7hteEDE28ELpzYDVv8xWHu8Q0QESoZJCJtslJpdWzRTFq0q8jNRcuunei22uM2QYfpPVeqLxNuf-v9B14mHo5tyUPtYQH0Nli3Xnasq92gEj-KNEYzcxgobQ3vdmj7GJzbaZhivseH3bB47aa8tP1Z0f_tR0tRh60FQoIMtvuTMmy8dtLB9CzShop"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="mt-16 w-full md:ml-[240px] p-container-padding bg-background overflow-y-auto h-[calc(100vh-64px)]">
+<div class="mb-6 flex justify-between items-end">
+<div>
+<h2 class="font-headline-md text-headline-md text-on-background">Financial &amp; Operational Analytics</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-1">Real-time supply chain performance and valuation metrics.</p>
+</div>
+<div class="flex gap-3">
+<button class="flex items-center gap-2 px-4 py-2 border border-outline-variant rounded bg-surface hover:bg-surface-container-low transition-colors font-label-caps text-label-caps text-on-surface">
+<span class="material-symbols-outlined text-[18px]">download</span>
+                    Export CSV
+                </button>
+</div>
+</div>
+<!-- Bento Grid Layout -->
+<div class="grid grid-cols-1 xl:grid-cols-3 gap-grid-gutter">
+<!-- Timeline (Gantt) - PO Delivery Lead Time -->
+<div class="xl:col-span-2 bg-surface rounded-lg border border-outline-variant p-6 flex flex-col h-[400px]">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">PO Delivery Lead Time</h3>
+<div class="flex gap-4 font-label-caps text-label-caps text-on-surface-variant">
+<div class="flex items-center gap-2"><div class="w-3 h-3 bg-secondary-container rounded-sm"></div> Planned</div>
+<div class="flex items-center gap-2"><div class="w-3 h-3 bg-primary rounded-sm"></div> Actual</div>
+<div class="flex items-center gap-2"><div class="w-3 h-3 bg-error rounded-sm"></div> Delayed</div>
+</div>
+</div>
+<div class="flex-1 relative border-l border-b border-outline-variant mt-2 pb-4">
+<!-- Gantt Grid lines -->
+<div class="absolute inset-0 grid grid-cols-7 border-outline-variant border-opacity-30">
+<div class="border-r border-outline-variant border-opacity-30 border-dashed h-full"></div>
+<div class="border-r border-outline-variant border-opacity-30 border-dashed h-full"></div>
+<div class="border-r border-outline-variant border-opacity-30 border-dashed h-full"></div>
+<div class="border-r border-outline-variant border-opacity-30 border-dashed h-full"></div>
+<div class="border-r border-outline-variant border-opacity-30 border-dashed h-full"></div>
+<div class="border-r border-outline-variant border-opacity-30 border-dashed h-full"></div>
+<div class="h-full"></div>
+</div>
+<!-- Gantt Rows -->
+<div class="absolute inset-0 flex flex-col justify-around py-4 z-10">
+<!-- PO-1029 -->
+<div class="relative h-10 w-full group">
+<div class="absolute -left-[70px] top-2 font-data-mono text-data-mono text-on-surface">PO-1029</div>
+<div class="absolute left-[10%] w-[40%] h-3 top-1 bg-secondary-container rounded-sm opacity-60"></div>
+<div class="absolute left-[10%] w-[40%] h-3 top-5 bg-primary rounded-sm"></div>
+</div>
+<!-- PO-1030 (Delayed) -->
+<div class="relative h-10 w-full group">
+<div class="absolute -left-[70px] top-2 font-data-mono text-data-mono text-on-surface">PO-1030</div>
+<div class="absolute left-[20%] w-[30%] h-3 top-1 bg-secondary-container rounded-sm opacity-60"></div>
+<div class="absolute left-[25%] w-[45%] h-3 top-5 bg-error rounded-sm"></div>
+</div>
+<!-- PO-1031 -->
+<div class="relative h-10 w-full group">
+<div class="absolute -left-[70px] top-2 font-data-mono text-data-mono text-on-surface">PO-1031</div>
+<div class="absolute left-[40%] w-[20%] h-3 top-1 bg-secondary-container rounded-sm opacity-60"></div>
+<div class="absolute left-[40%] w-[20%] h-3 top-5 bg-primary rounded-sm"></div>
+</div>
+<!-- PO-1032 -->
+<div class="relative h-10 w-full group">
+<div class="absolute -left-[70px] top-2 font-data-mono text-data-mono text-on-surface">PO-1032</div>
+<div class="absolute left-[60%] w-[25%] h-3 top-1 bg-secondary-container rounded-sm opacity-60"></div>
+<div class="absolute left-[65%] w-[20%] h-3 top-5 bg-primary rounded-sm"></div>
+</div>
+</div>
+</div>
+<!-- X-Axis Labels -->
+<div class="flex justify-between font-data-mono text-data-mono text-on-surface-variant mt-2 pl-[70px]">
+<span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+</div>
+</div>
+<!-- ROP Alerts & Actions -->
+<div class="xl:col-span-1 flex flex-col gap-grid-gutter h-[400px]">
+<div class="bg-surface rounded-lg border border-outline-variant p-6 flex-1 flex flex-col">
+<h3 class="font-headline-sm text-headline-sm text-error flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">warning</span>
+                        Critical ROP Alerts
+                    </h3>
+<div class="flex-1 overflow-y-auto pr-2 space-y-3">
+<!-- Alert Item -->
+<div class="bg-error-container bg-opacity-20 border border-error border-opacity-30 rounded p-3 flex justify-between items-center">
+<div>
+<div class="font-label-caps text-label-caps text-on-surface">SKU-BV-092</div>
+<div class="font-body-md text-body-md text-on-surface-variant">Sparkling Water 500ml</div>
+<div class="font-data-mono text-data-mono text-error mt-1 font-bold">ATP: 140 <span class="text-on-surface-variant font-normal">/ ROP: 500</span></div>
+</div>
+<button class="bg-error text-on-error px-3 py-1.5 rounded font-label-caps text-label-caps hover:bg-on-error-container transition-colors shadow-sm">
+                                ORDER NOW
+                            </button>
+</div>
+<!-- Alert Item -->
+<div class="bg-error-container bg-opacity-20 border border-error border-opacity-30 rounded p-3 flex justify-between items-center">
+<div>
+<div class="font-label-caps text-label-caps text-on-surface">SKU-BV-114</div>
+<div class="font-body-md text-body-md text-on-surface-variant">Energy Drink Can 330ml</div>
+<div class="font-data-mono text-data-mono text-error mt-1 font-bold">ATP: 50 <span class="text-on-surface-variant font-normal">/ ROP: 300</span></div>
+</div>
+<button class="bg-error text-on-error px-3 py-1.5 rounded font-label-caps text-label-caps hover:bg-on-error-container transition-colors shadow-sm">
+                                ORDER NOW
+                            </button>
+</div>
+</div>
+</div>
+<!-- Mini Valuation Card -->
+<div class="bg-primary text-on-primary rounded-lg border border-outline-variant p-6 shadow-sm">
+<h3 class="font-label-caps text-label-caps opacity-80 mb-1">Total Inventory Value (MAC)</h3>
+<div class="font-display-lg text-display-lg font-black">$4.2M</div>
+<div class="flex items-center gap-1 mt-2 text-tertiary-fixed font-data-mono text-data-mono">
+<span class="material-symbols-outlined text-[16px]">trending_up</span>
+                        +2.4% vs last month
+                    </div>
+</div>
+</div>
+<!-- ROP Demand Chart (Full Width Bottom) -->
+<div class="xl:col-span-3 bg-surface rounded-lg border border-outline-variant p-6 h-[350px] flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">ATP vs Reorder Point (Key SKUs)</h3>
+<div class="flex gap-4 font-label-caps text-label-caps text-on-surface-variant">
+<div class="flex items-center gap-2"><div class="w-3 h-3 bg-secondary rounded-sm"></div> Current ATP</div>
+<div class="flex items-center gap-2"><div class="w-6 h-0 border-t-2 border-error border-dashed"></div> ROP</div>
+</div>
+</div>
+<div class="flex-1 relative w-full h-full flex items-end justify-around pb-6 pt-10 border-b border-l border-outline-variant">
+<!-- ROP Dashed Line (Overall Average for visual effect) -->
+<div class="absolute top-[40%] left-0 w-full border-t-2 border-error border-dashed opacity-80 z-20 pointer-events-none"></div>
+<!-- Y-Axis Labels -->
+<div class="absolute left-[-40px] h-full flex flex-col justify-between items-end pb-6 pt-10 font-data-mono text-data-mono text-on-surface-variant">
+<span>1000</span>
+<span>500</span>
+<span>0</span>
+</div>
+<!-- Bars -->
+<!-- Bar 1 (Healthy) -->
+<div class="relative w-12 h-[80%] bg-secondary rounded-t-sm z-10 hover:bg-primary transition-colors cursor-pointer group flex justify-center">
+<div class="absolute -top-8 bg-inverse-surface text-inverse-on-surface font-data-mono text-data-mono px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30">ATP: 800</div>
+<div class="absolute -bottom-8 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap -rotate-45 origin-top-left">BV-01</div>
+</div>
+<!-- Bar 2 (Critical) -->
+<div class="relative w-12 h-[30%] bg-error rounded-t-sm z-10 hover:bg-error-container transition-colors cursor-pointer group flex justify-center">
+<div class="absolute -top-8 bg-inverse-surface text-inverse-on-surface font-data-mono text-data-mono px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30">ATP: 300</div>
+<div class="absolute -bottom-8 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap -rotate-45 origin-top-left">BV-02</div>
+</div>
+<!-- Bar 3 (Warning) -->
+<div class="relative w-12 h-[45%] bg-secondary-container rounded-t-sm z-10 hover:bg-primary transition-colors cursor-pointer group flex justify-center">
+<div class="absolute -top-8 bg-inverse-surface text-inverse-on-surface font-data-mono text-data-mono px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30">ATP: 450</div>
+<div class="absolute -bottom-8 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap -rotate-45 origin-top-left">BV-03</div>
+</div>
+<!-- Bar 4 (Healthy) -->
+<div class="relative w-12 h-[90%] bg-secondary rounded-t-sm z-10 hover:bg-primary transition-colors cursor-pointer group flex justify-center">
+<div class="absolute -top-8 bg-inverse-surface text-inverse-on-surface font-data-mono text-data-mono px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30">ATP: 900</div>
+<div class="absolute -bottom-8 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap -rotate-45 origin-top-left">BV-04</div>
+</div>
+<!-- Bar 5 (Critical) -->
+<div class="relative w-12 h-[20%] bg-error rounded-t-sm z-10 hover:bg-error-container transition-colors cursor-pointer group flex justify-center">
+<div class="absolute -top-8 bg-inverse-surface text-inverse-on-surface font-data-mono text-data-mono px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30">ATP: 200</div>
+<div class="absolute -bottom-8 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap -rotate-45 origin-top-left">BV-05</div>
+</div>
+<!-- Bar 6 (Healthy) -->
+<div class="relative w-12 h-[60%] bg-secondary rounded-t-sm z-10 hover:bg-primary transition-colors cursor-pointer group flex justify-center">
+<div class="absolute -top-8 bg-inverse-surface text-inverse-on-surface font-data-mono text-data-mono px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-30">ATP: 600</div>
+<div class="absolute -bottom-8 font-label-caps text-label-caps text-on-surface-variant whitespace-nowrap -rotate-45 origin-top-left">BV-06</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>
