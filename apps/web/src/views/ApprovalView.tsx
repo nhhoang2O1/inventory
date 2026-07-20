@@ -75,6 +75,11 @@ export function ApprovalView({
       </div>
 
       {/* Approval Data Grid */}
+      {approvalTab !== 'po' && (
+        <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl p-4 text-xs font-semibold">
+          Backend chưa có contract <code>GET /approvals/inbox</code> cho loại approval này. UI không tạo dữ liệu giả và không tự xóa item khỏi queue.
+        </div>
+      )}
       <div className="bg-white border border-outline-variant rounded-xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
@@ -197,8 +202,9 @@ export function ApprovalView({
                   Hủy Bỏ
                 </button>
                 <button
+                  disabled
                   onClick={() => handleRejectRequest(reviewModalRequest)}
-                  className="px-4 py-2 bg-error-container text-on-error-container rounded text-xs font-bold hover:opacity-90"
+                  className="px-4 py-2 bg-error-container text-on-error-container rounded text-xs font-bold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Từ Chối
                 </button>

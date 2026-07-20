@@ -114,11 +114,14 @@ export function App() {
 
           {auth.isLoggedIn && auth.view === 'outbound' && (
             <OutboundView
-              outboundItems={outbound.outboundItems}
               requests={outbound.requests}
               selectedId={outbound.selectedId}
+              detail={outbound.detail}
+              skuOptions={outbound.skuOptions}
               scanInput={outbound.scanInput}
               setScanInput={outbound.setScanInput}
+              scanQuantity={outbound.scanQuantity}
+              setScanQuantity={outbound.setScanQuantity}
               pickAlert={outbound.pickAlert}
               isLoading={outbound.isLoading}
               handleScanSubmit={outbound.handleScanSubmit}
@@ -126,6 +129,17 @@ export function App() {
               onCompletePick={outbound.onCompletePick}
               onCancelPick={outbound.onCancelPick}
               transition={outbound.transition}
+              allocateAutomatically={outbound.allocateAutomatically}
+              createPickTask={outbound.createPickTask}
+              createIssueRequest={outbound.createIssueRequest}
+              newIssueCode={outbound.newIssueCode}
+              setNewIssueCode={outbound.setNewIssueCode}
+              newRecipient={outbound.newRecipient}
+              setNewRecipient={outbound.setNewRecipient}
+              newSkuId={outbound.newSkuId}
+              setNewSkuId={outbound.setNewSkuId}
+              newQuantity={outbound.newQuantity}
+              setNewQuantity={outbound.setNewQuantity}
             />
           )}
 
@@ -133,7 +147,6 @@ export function App() {
             <InventoryView
               brandFilter={brandFilter}
               setBrandFilter={setBrandFilter}
-              onRefresh={() => alert("Đã làm mới dữ liệu từ Database Core Sync.")}
               actorId={auth.userId}
               warehouseId={auth.selectedWarehouseId}
               warehouseCode={auth.selectedWarehouseCode}

@@ -84,7 +84,7 @@ export class StocktakeService {
       throw new ForbiddenException('Permission or warehouse scope denied');
     }
     return this.db.query(`
-      SELECT id, session_code, status, blind_count, recount_threshold, current_round, created_at
+      SELECT id, session_code, status, blind_count, recount_threshold, current_round, version, created_at
       FROM stocktake.stocktake_session
       WHERE warehouse_id = $1
       ORDER BY created_at DESC

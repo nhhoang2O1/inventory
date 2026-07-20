@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiGet, ApiError } from '../apiClient';
 
 export interface QualityCase {
   id: string;
@@ -63,13 +64,13 @@ export function useQuality(actorId?: string, warehouseId?: string) {
     setError(null);
 
     Promise.all([
-      fetch(`/api/v1/quality/cases?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/quality/expiry-runs?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/recalls?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/returns?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/locations?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/positions?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/users`, { headers: { 'x-actor-id': actorId } }).then(res => res.json())
+      apiGet<QualityCase[]>(`/quality/cases?warehouseId=${warehouseId}`, { actorId }),
+      apiGet<ExpiryRun[]>(`/quality/expiry-runs?warehouseId=${warehouseId}`, { actorId }),
+      apiGet<RecallCampaign[]>(`/recalls?warehouseId=${warehouseId}`, { actorId }),
+      apiGet<CustomerReturnItem[]>(`/returns?warehouseId=${warehouseId}`, { actorId }),
+      apiGet<any[]>(`/inventory/locations?warehouseId=${warehouseId}`, { actorId }),
+      apiGet<any[]>(`/inventory/positions?warehouseId=${warehouseId}`, { actorId }),
+      apiGet<any[]>('/inventory/users', { actorId })
     ])
       .then(([casesData, expiryData, recallsData, returnsData, locsData, posData, usersData]) => {
         setCases(Array.isArray(casesData) ? casesData : []);

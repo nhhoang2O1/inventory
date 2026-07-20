@@ -72,7 +72,7 @@ export function InboundView({
             )}
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 mt-3 text-xs">
-            <span className="text-on-surface-variant">Nhà cung cấp: <strong>Heineken Vietnam N.V</strong></span>
+            <span className="text-on-surface-variant">Nhà cung cấp: <strong>{activePo?.supplier_name || '—'}</strong></span>
             <span className="text-on-surface-variant">Nhân viên nhận: <strong>{operatorId}</strong></span>
             <span className="text-on-surface-variant">Ngày PO: <strong>{activePo ? new Date(activePo.order_date).toLocaleDateString('vi-VN') : 'N/A'}</strong></span>
           </div>
@@ -228,13 +228,9 @@ export function InboundView({
                 ))}
                 <tr>
                   <td colSpan={7} className="p-3">
-                    <button
-                      onClick={handleInboundAddLine}
-                      className="text-secondary hover:text-primary font-bold flex items-center gap-1 transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">add</span>
-                      Thêm Dòng Sản Phẩm Mới
-                    </button>
+                    <span className="text-on-surface-variant text-[11px]">
+                      Chỉ nhận các dòng đã có trong PO; thêm dòng mới phải được thực hiện ở Purchase Order.
+                    </span>
                   </td>
                 </tr>
               </tbody>
@@ -301,16 +297,10 @@ export function InboundView({
                 <span className="material-symbols-outlined text-primary">attach_file</span>
                 Hồ Sơ &amp; Chứng Từ Kèm Theo
               </h3>
-              <button
-                onClick={() => {
-                  const newFile = `photo_receipt_${Math.floor(100+Math.random()*900)}.jpg`;
-                  setUploadedFiles([...uploadedFiles, newFile]);
-                }}
-                className="w-full flex items-center justify-center gap-2 border border-dashed border-outline hover:border-secondary hover:bg-surface-bright text-secondary py-8 rounded transition-colors mb-4 group"
-              >
-                <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_a_photo</span>
-                <span className="font-body-md text-xs font-semibold">Tải Phiếu Giao Nhận Signed PDF / Photo</span>
-              </button>
+              <div className="w-full flex items-center justify-center gap-2 border border-dashed border-outline text-on-surface-variant py-8 rounded mb-4">
+                <span className="material-symbols-outlined">attach_file</span>
+                <span className="font-body-md text-xs font-semibold">Đính kèm chứng từ sẽ được bật khi backend có upload contract.</span>
+              </div>
 
               {/* Mock list of uploaded */}
               <div className="space-y-2">
@@ -348,12 +338,6 @@ export function InboundView({
                     Xác Nhận Hoàn Tất Nhập
                   </>
                 )}
-              </button>
-              <button
-                onClick={() => alert("Đã lưu bản nháp phiếu nhập.")}
-                className="w-full bg-white border border-outline hover:bg-surface-bright text-on-surface-variant py-2 rounded text-xs font-bold transition-colors"
-              >
-                Lưu Bản Nháp (Draft)
               </button>
             </div>
           </div>

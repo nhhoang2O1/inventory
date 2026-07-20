@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApprovalRequest, ApprovalTab } from '../types';
+import { apiCommand, apiGet, ApiError } from '../apiClient';
 
 interface PurchaseOrder {
   id: string;
@@ -11,9 +12,6 @@ interface PurchaseOrder {
   order_date: string;
 }
 
-const correlation = () => crypto.randomUUID();
-const idempotency = () => `${crypto.randomUUID()}-${Date.now()}`;
-
 export function useApproval(operatorId: string, warehouseId: string) {
   const [approvalTab, setApprovalTab] = useState<ApprovalTab>('po');
   const [reviewModalRequest, setReviewModalRequest] = useState<ApprovalRequest | null>(null);
@@ -22,12 +20,10 @@ export function useApproval(operatorId: string, warehouseId: string) {
 
   const load = useCallback(async () => {
     if (!operatorId || !warehouseId) return;
-    const response = await fetch(`/api/v1/purchase-orders?warehouseId=${encodeURIComponent(warehouseId)}`, {
-      credentials: 'include',
-      headers: { 'X-Correlation-Id': correlation() }
-    });
-    const data: PurchaseOrder[] = await response.json();
-    if (!response.ok) throw new Error((data as unknown as { message?: string }).message || 'Không tải được hàng đợi duyệt');
+    const data = await apiGet<PurchaseOrder[]>(
+      `/purchase-orders?warehouseId=${encodeURIComponent(warehouseId)}`,
+      { actorId: operatorId }
+    );
     setApprovalRequests(data.filter((po) => po.status === 'PENDING_APPROVAL').map((po) => ({
       id: po.po_code,
       requester: po.created_by,
@@ -43,18 +39,21 @@ export function useApproval(operatorId: string, warehouseId: string) {
     })));
   }, [operatorId, warehouseId]);
 
-  useEffect(() => { void load().catch((error) => setApprovalActionMessage(error instanceof Error ? error.message : 'Không tải được hàng đợi duyệt')); }, [load]);
+  useEffect(() => {
+    void load().catch((error) => setApprovalActionMessage(
+      error instanceof ApiError ? error.message : 'Không tải được hàng đợi duyệt'
+    ));
+  }, [load]);
 
-  const resolvePoId = useCallback(async (request: ApprovalRequest) => {
-    const response = await fetch(`/api/v1/purchase-orders?warehouseId=${encodeURIComponent(warehouseId)}`, {
-      credentials: 'include',
-      headers: { 'X-Correlation-Id': correlation() }
-    });
-    const data: PurchaseOrder[] = await response.json();
+  const resolvePo = useCallback(async (request: ApprovalRequest) => {
+    const data = await apiGet<PurchaseOrder[]>(
+      `/purchase-orders?warehouseId=${encodeURIComponent(warehouseId)}`,
+      { actorId: operatorId }
+    );
     const po = data.find((item) => item.po_code === request.id);
     if (!po) throw new Error('Không tìm thấy PO trong API');
     return po;
-  }, [warehouseId]);
+  }, [operatorId, warehouseId]);
 
   const handleApproveRequest = async (request: ApprovalRequest) => {
     if (request.creatorId === operatorId) {
@@ -62,31 +61,31 @@ export function useApproval(operatorId: string, warehouseId: string) {
       return;
     }
     try {
-      const po = await resolvePoId(request);
-      const response = await fetch(`/api/v1/purchase-orders/${po.id}/approve`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': idempotency(), 'X-Correlation-Id': correlation() },
-        body: JSON.stringify({ expectedVersion: po.version })
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Không thể phê duyệt PO');
+      const po = await resolvePo(request);
+      await apiCommand(`/purchase-orders/${po.id}/approve`, 'POST', { expectedVersion: po.version }, operatorId);
       setApprovalActionMessage(`Đã phê duyệt ${request.id} qua API.`);
       setReviewModalRequest(null);
       await load();
     } catch (error) {
-      setApprovalActionMessage(error instanceof Error ? error.message : 'Không thể phê duyệt PO');
+      setApprovalActionMessage(error instanceof ApiError ? error.message : 'Không thể phê duyệt PO');
     }
   };
 
   const handleRejectRequest = async (request: ApprovalRequest) => {
-    setApprovalActionMessage(`API hiện chưa có endpoint từ chối PO ${request.id}; không xoá giả khỏi hàng đợi.`);
+    setApprovalActionMessage(`Backend chưa có endpoint từ chối PO ${request.id}; phiếu vẫn được giữ trong hàng đợi.`);
     setReviewModalRequest(null);
   };
 
   return {
-    approvalTab, setApprovalTab, reviewModalRequest, setReviewModalRequest,
-    approvalActionMessage, setApprovalActionMessage, approvalRequests,
-    handleApproveRequest, handleRejectRequest, reload: load
+    approvalTab,
+    setApprovalTab,
+    reviewModalRequest,
+    setReviewModalRequest,
+    approvalActionMessage,
+    setApprovalActionMessage,
+    approvalRequests,
+    handleApproveRequest,
+    handleRejectRequest,
+    reload: load
   };
 }

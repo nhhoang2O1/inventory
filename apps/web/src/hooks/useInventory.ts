@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { apiCommand, apiGet, ApiError } from '../apiClient';
 
 export interface TransferItem {
   id: string;
@@ -7,6 +8,7 @@ export interface TransferItem {
   destination_warehouse_name: string;
   total_qty: number;
   status: string;
+  version: number;
   created_at: string;
 }
 
@@ -16,6 +18,8 @@ export interface StocktakeSession {
   status: string;
   blind_count: boolean;
   recount_threshold: number;
+  current_round?: number;
+  version: number;
   created_at: string;
 }
 
@@ -39,135 +43,156 @@ export function useInventory(actorId: string, warehouseId: string) {
   const [reservations, setReservations] = useState<any[]>([]);
   const [transfers, setTransfers] = useState<TransferItem[]>([]);
   const [stocktakes, setStocktakes] = useState<StocktakeSession[]>([]);
-
-  // Metadata dropdowns
+  const [selectedTransfer, setSelectedTransfer] = useState<any | null>(null);
+  const [selectedStocktake, setSelectedStocktake] = useState<any | null>(null);
   const [allWarehouses, setAllWarehouses] = useState<any[]>([]);
   const [allLocations, setAllLocations] = useState<any[]>([]);
   const [allZones, setAllZones] = useState<any[]>([]);
-
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Form state for creating Transfer
   const [destWarehouseId, setDestWarehouseId] = useState('');
   const [selectedPosId, setSelectedPosId] = useState('');
   const [transQty, setTransQty] = useState(1);
   const [destLocationId, setDestLocationId] = useState('');
-
-  // Form state for creating Stocktake
   const [selectedZoneId, setSelectedZoneId] = useState('');
 
-  const fetchAllData = () => {
+  const fetchAllData = async () => {
     if (!actorId || !warehouseId) return;
     setIsLoading(true);
     setError(null);
-
-    Promise.all([
-      fetch(`/api/v1/inventory/positions?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/reservations?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/transfers?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/stocktakes?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/warehouses`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/locations?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/zones?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json())
-    ])
-      .then(([posData, resData, trfData, stkData, whData, locData, zoneData]) => {
-        setPositions(Array.isArray(posData) ? posData : []);
-        setReservations(Array.isArray(resData) ? resData : []);
-        setTransfers(Array.isArray(trfData) ? trfData : []);
-        setStocktakes(Array.isArray(stkData) ? stkData : []);
-        setAllWarehouses(Array.isArray(whData) ? whData : []);
-        setAllLocations(Array.isArray(locData) ? locData : []);
-        setAllZones(Array.isArray(zoneData) ? zoneData : []);
-      })
-      .catch(err => {
-        console.error('Error fetching inventory data:', err);
-        setError('Không thể kết nối đến Database Core Sync.');
-      })
-      .finally(() => setIsLoading(false));
+    try {
+      const [posData, resData, trfData, stkData, whData, locData, zoneData] = await Promise.all([
+        apiGet<InventoryPosition[]>(`/inventory/positions?warehouseId=${warehouseId}`, { actorId }),
+        apiGet<any[]>(`/inventory/reservations?warehouseId=${warehouseId}`, { actorId }),
+        apiGet<TransferItem[]>(`/transfers?warehouseId=${warehouseId}`, { actorId }),
+        apiGet<StocktakeSession[]>(`/stocktakes?warehouseId=${warehouseId}`, { actorId }),
+        apiGet<any[]>('/inventory/warehouses', { actorId }),
+        apiGet<any[]>(`/inventory/locations?warehouseId=${warehouseId}`, { actorId }),
+        apiGet<any[]>(`/inventory/zones?warehouseId=${warehouseId}`, { actorId })
+      ]);
+      setPositions(Array.isArray(posData) ? posData : []);
+      setReservations(Array.isArray(resData) ? resData : []);
+      setTransfers(Array.isArray(trfData) ? trfData : []);
+      setStocktakes(Array.isArray(stkData) ? stkData : []);
+      setAllWarehouses(Array.isArray(whData) ? whData : []);
+      setAllLocations(Array.isArray(locData) ? locData : []);
+      setAllZones(Array.isArray(zoneData) ? zoneData : []);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Không thể kết nối đến Inventory API.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchAllData();
+    void fetchAllData();
   }, [actorId, warehouseId]);
 
-  const handleCreateTransfer = (e: React.FormEvent) => {
+  const handleCreateTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!destWarehouseId || !selectedPosId || !destLocationId || !transQty) {
-      alert('Vui lòng chọn kho đến, lô hàng chuyển, vị trí nhận và số lượng!');
+    const pos = positions.find((item) => item.id === selectedPosId);
+    if (!destWarehouseId || !pos || !destLocationId || !Number.isSafeInteger(transQty) || transQty <= 0) {
+      setError('Vui lòng chọn kho đến, lô hàng, vị trí nhận và số lượng nguyên dương.');
       return;
     }
-    const pos = positions.find(p => p.id === selectedPosId);
-    if (!pos) return;
-
+    if (destWarehouseId !== warehouseId) {
+      setError('Transfer liên kho cần transit warehouse/location theo contract backend; chưa gửi command thiếu dữ liệu.');
+      return;
+    }
     setIsLoading(true);
-    fetch('/api/v1/transfers', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-actor-id': actorId,
-        'idempotency-key': `trf-${Date.now()}`
-      },
-      body: JSON.stringify({
+    setError(null);
+    try {
+      const transfer = await apiCommand<any>('/transfers', {
         transferCode: `TRF-${Date.now().toString().slice(-6)}`,
-        transferType: destWarehouseId === warehouseId ? 'LOCATION' : 'WAREHOUSE',
+        transferType: 'LOCATION',
         sourceWarehouseId: warehouseId,
-        destinationWarehouseId: destWarehouseId,
-        lines: [
-          {
-            skuId: pos.sku_id,
-            batchId: pos.batch_id,
-            sourceLocationId: pos.location_id,
-            destinationLocationId: destLocationId,
-            quantity: Number(transQty)
-          }
-        ]
-      })
-    })
-      .then(res => {
-        if (!res.ok) return res.text().then(t => { throw new Error(t) });
-        return res.json();
-      })
-      .then(trf => {
-        alert(`Đã lập yêu cầu chuyển kho thành công với mã ${trf.transfer_code || trf.id}.`);
-        setDestWarehouseId('');
-        setSelectedPosId('');
-        setDestLocationId('');
-        setTransQty(1);
-        fetchAllData();
-      })
-      .catch(err => alert(`Lỗi chuyển kho: ${err.message}`))
-      .finally(() => setIsLoading(false));
+        destinationWarehouseId: warehouseId,
+        lines: [{
+          skuId: pos.sku_id,
+          batchId: pos.batch_id,
+          sourceLocationId: pos.location_id,
+          destinationLocationId: destLocationId,
+          quantity: transQty
+        }]
+      }, { actorId });
+      setSuccessMessage(`Đã lập transfer ${transfer.transferCode || transfer.transfer_code || transfer.id}.`);
+      setDestWarehouseId('');
+      setSelectedPosId('');
+      setDestLocationId('');
+      setTransQty(1);
+      await fetchAllData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Không thể lập yêu cầu chuyển kho.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleCreateStocktake = (e: React.FormEvent) => {
+  const handleCreateStocktake = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    fetch('/api/v1/stocktakes', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-actor-id': actorId,
-        'idempotency-key': `stk-${Date.now()}`
-      },
-      body: JSON.stringify({
+    setError(null);
+    try {
+      const session = await apiCommand<any>('/stocktakes', {
         sessionCode: `STK-${Date.now().toString().slice(-6)}`,
         warehouseId,
         ...(selectedZoneId ? { zoneId: selectedZoneId } : {}),
         blindCount: true
-      })
-    })
-      .then(res => {
-        if (!res.ok) return res.text().then(t => { throw new Error(t) });
-        return res.json();
-      })
-      .then(stk => {
-        alert(`Đã khởi tạo phiên kiểm kê thành công với mã ${stk.session_code || stk.id}. Khu vực kiểm kê đã được khóa cứng đề phòng biến động tồn kho.`);
-        setSelectedZoneId('');
-        fetchAllData();
-      })
-      .catch(err => alert(`Lỗi tạo phiên kiểm kê: ${err.message}`))
-      .finally(() => setIsLoading(false));
+      }, { actorId });
+      setSuccessMessage(`Đã khởi tạo phiên kiểm kê ${session.sessionCode || session.session_code || session.id}.`);
+      setSelectedZoneId('');
+      await fetchAllData();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Không thể khởi tạo phiên kiểm kê.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadTransfer = async (id: string) => {
+    try {
+      const value = await apiGet<any>(`/transfers/${id}`, { actorId });
+      setSelectedTransfer(value);
+      return value;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Không tải được chi tiết transfer.');
+      return null;
+    }
+  };
+
+  const transferCommand = async (id: string, action: string, expectedVersion: number, body: Record<string, unknown> = {}) => {
+    try {
+      await apiCommand(`/transfers/${id}/${action}`, 'POST', { expectedVersion, ...body }, actorId);
+      setSuccessMessage(`Đã thực hiện ${action} cho transfer.`);
+      await fetchAllData();
+      await loadTransfer(id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : `Không thể ${action} transfer.`);
+    }
+  };
+
+  const loadStocktake = async (id: string) => {
+    try {
+      const value = await apiGet<any>(`/stocktakes/${id}`, { actorId });
+      setSelectedStocktake(value);
+      return value;
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Không tải được chi tiết stocktake.');
+      return null;
+    }
+  };
+
+  const stocktakeCommand = async (id: string, action: string, expectedVersion: number, body: Record<string, unknown> = {}) => {
+    try {
+      await apiCommand(`/stocktakes/${id}/${action}`, 'POST', { expectedVersion, ...body }, actorId);
+      setSuccessMessage(`Đã thực hiện ${action} cho stocktake.`);
+      await fetchAllData();
+      await loadStocktake(id);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : `Không thể ${action} stocktake.`);
+    }
   };
 
   return {
@@ -175,11 +200,14 @@ export function useInventory(actorId: string, warehouseId: string) {
     reservations,
     transfers,
     stocktakes,
+    selectedTransfer,
+    selectedStocktake,
     allWarehouses,
     allLocations,
     allZones,
     isLoading,
     error,
+    successMessage,
     destWarehouseId,
     setDestWarehouseId,
     selectedPosId,
@@ -192,6 +220,10 @@ export function useInventory(actorId: string, warehouseId: string) {
     setSelectedZoneId,
     fetchAllData,
     handleCreateTransfer,
-    handleCreateStocktake
+    handleCreateStocktake,
+    loadTransfer,
+    transferCommand,
+    loadStocktake,
+    stocktakeCommand
   };
 }
