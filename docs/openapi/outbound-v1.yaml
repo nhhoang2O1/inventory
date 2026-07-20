@@ -1,0 +1,218 @@
+openapi: 3.1.0
+info:
+  title: WMS Outbound and FEFO API
+  version: 0.6.0
+paths:
+  /api/v1/outbound/issue-requests:
+    get:
+      operationId: listIssueRequests
+      parameters:
+        - { name: warehouseId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/IssueRequestStatus' } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses:
+        '200': { description: Warehouse-scoped issue requests }
+        '403': { description: Permission or warehouse scope denied }
+    post:
+      operationId: createIssueRequest
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateIssueRequest' }
+      responses:
+        '201': { description: Draft issue request or idempotent replay }
+        '409': { description: Minimum quantity or idempotency conflict }
+  /api/v1/outbound/issue-requests/{issueRequestId}:
+    get:
+      operationId: getIssueRequest
+      parameters:
+        - { $ref: '#/components/parameters/IssueRequestId' }
+      responses:
+        '200': { description: Issue request with allocations, pick task and goods issue }
+        '404': { description: Issue request not found }
+  /api/v1/outbound/issue-requests/{issueRequestId}/submit:
+    post:
+      operationId: submitIssueRequest
+      parameters:
+        - { $ref: '#/components/parameters/IssueRequestId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody: { $ref: '#/components/requestBodies/VersionCommand' }
+      responses:
+        '201': { description: Submitted without changing inventory }
+        '409': { description: State, version or quantity policy conflict }
+  /api/v1/outbound/issue-requests/{issueRequestId}/approve:
+    post:
+      operationId: approveIssueRequest
+      parameters:
+        - { $ref: '#/components/parameters/IssueRequestId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody: { $ref: '#/components/requestBodies/VersionCommand' }
+      responses:
+        '201': { description: Approved after canonical ATP check }
+        '403': { description: Four-eyes, permission or scope violation }
+        '409': { description: ATP, state or version conflict }
+  /api/v1/outbound/issue-requests/{issueRequestId}/allocate:
+    post:
+      operationId: allocateIssueRequest
+      parameters:
+        - { $ref: '#/components/parameters/IssueRequestId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AllocateIssueRequest' }
+      responses:
+        '201': { description: Reservation-backed FEFO allocations and explanation }
+        '403': { description: FEFO override permission or warehouse scope denied }
+        '409': { description: ATP, MRSL, FEFO, state, version or idempotency conflict }
+  /api/v1/outbound/issue-requests/{issueRequestId}/pick-tasks:
+    post:
+      operationId: createPickTask
+      parameters:
+        - { $ref: '#/components/parameters/IssueRequestId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/VersionCommand' }
+                - type: object
+                  properties:
+                    assignedTo: { type: string, format: uuid }
+      responses:
+        '201': { description: Pick task created from active allocations }
+  /api/v1/outbound/pick-tasks/{pickTaskId}/scan:
+    post:
+      operationId: confirmPickScan
+      parameters:
+        - { name: pickTaskId, in: path, required: true, schema: { type: string, format: uuid } }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [allocationId, barcode, quantity, expectedVersion]
+              properties:
+                allocationId: { type: string, format: uuid }
+                barcode: { type: string, minLength: 1 }
+                quantity: { type: integer, minimum: 1, description: Whole cases/crates/kegs }
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        '201': { description: Pick confirmed; inventory balance is unchanged }
+        '409': { description: Barcode, quantity, state or version conflict }
+  /api/v1/outbound/issue-requests/{issueRequestId}/post:
+    post:
+      operationId: postGoodsIssue
+      parameters:
+        - { $ref: '#/components/parameters/IssueRequestId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/VersionCommand' }
+                - type: object
+                  properties:
+                    reason: { type: string }
+      responses:
+        '201': { description: Atomic POSTED Goods Issue and Inventory Core movement IDs }
+        '409': { description: Pick, MRSL, on-hand, state, version or idempotency conflict }
+  /api/v1/outbound/issue-requests/{issueRequestId}/cancel:
+    post:
+      operationId: cancelIssueRequest
+      parameters:
+        - { $ref: '#/components/parameters/IssueRequestId' }
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - { $ref: '#/components/schemas/VersionCommand' }
+                - type: object
+                  required: [reason]
+                  properties:
+                    reason: { type: string, minLength: 1 }
+      responses:
+        '201': { description: Cancelled and active reservations released without movement }
+        '409': { description: Posted documents cannot be cancelled }
+components:
+  parameters:
+    IssueRequestId:
+      name: issueRequestId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 128 }
+  requestBodies:
+    VersionCommand:
+      required: true
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/VersionCommand' }
+  schemas:
+    IssueRequestStatus:
+      type: string
+      enum: [DRAFT, SUBMITTED, APPROVED, ALLOCATED, PICKING, POSTED, CANCELLED]
+    VersionCommand:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+    CreateIssueRequest:
+      type: object
+      additionalProperties: false
+      required: [issueCode, warehouseId, salesChannel, lines]
+      properties:
+        issueCode: { type: string, minLength: 1 }
+        warehouseId: { type: string, format: uuid }
+        customerReferenceId: { type: string, format: uuid }
+        recipientReference: { type: string }
+        salesChannel: { type: string, minLength: 1 }
+        allowPartial: { type: boolean, default: false }
+        lines:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            additionalProperties: false
+            required: [skuId, quantity]
+            properties:
+              skuId: { type: string, format: uuid }
+              quantity: { type: integer, minimum: 1, description: Whole cases/crates/kegs }
+              freeOfCharge: { type: boolean, default: false }
+    AllocateIssueRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        overrideReason: { type: string }
+        selections:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [lineId, batchId, locationId, quantity]
+            properties:
+              lineId: { type: string, format: uuid }
+              batchId: { type: string, format: uuid }
+              locationId: { type: string, format: uuid }
+              quantity: { type: integer, minimum: 1 }

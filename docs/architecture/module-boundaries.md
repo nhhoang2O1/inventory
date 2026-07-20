@@ -5,13 +5,14 @@
 | IAM/Approval | actor, permission, warehouse scope, approval decision | user, role, permission, policy | Inventory repository |
 | Catalog | SKU and wholesale quantity policy query | product, SKU, UOM, packaging specification, barcode | Balance/movement |
 | Warehouse | location/capacity/mixing query | warehouse, zone, location | Inventory mutation |
-| Inventory Core | ATP query, reserve/release, post/reverse | batch, balance, reservation, movement, cost ledger | PO/order workflow |
+| Inventory Core | ATP query, reserve/release, post/reverse | batch, balance, reservation, movement | PO/order workflow |
 | Purchasing/Receiving | PO and receipt commands | supplier, PR, PO, receipt | Direct balance write |
 | Outbound | issue/pick/FEFO workflow | issue request, pick task, goods issue | Own ATP formula |
-| Transfer/Stocktake | transfer/count/adjustment workflow | transfer, count, adjustment | Direct balance write |
-| Quality/Recall | case, disposition, containment | quality case, return, recall | Direct balance write |
-| Planning/Reporting | queries, draft proposal | ROP policy, read model, export job | Source transaction update |
-| Integration/Audit | publish/reconcile/audit append | outbox, integration state, audit | Business decision ownership |
+| Transfer | location/warehouse transfer, receipt and discrepancy workflow | transfer, line, receipt, discrepancy | Direct balance write; own ATP formula |
+| Stocktake/Adjustment | snapshot, blind count, recount and adjustment workflow | stocktake session, snapshot, count, adjustment, reversal request | Direct balance/ledger write; mutation of original movement |
+| Quality/Recall | hold, disposition, return, expiry, recall containment and traceability | quality case, return, expiry run, recall | Direct balance/ledger write; independent ATP formula |
+| Planning/Reporting | ROP run, dashboard, KPI, cost/value query, snapshot export | ROP policy, Draft PR, cost ledger, report snapshot/export | Source transaction update; approved PO creation |
+| Integration/Audit | endpoint subscription, publish/reconcile/replay, audit append | outbox delivery/attempt/replay, integration state, audit | Business decision ownership; direct Inventory write |
 
 Folder convention trong API:
 

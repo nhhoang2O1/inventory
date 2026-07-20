@@ -1,0 +1,188 @@
+openapi: 3.1.0
+info:
+  title: Warehouse WMS Phase 9 API
+  version: 0.9.0
+  description: Planning, KPI, reporting, valuation and integration reconciliation.
+servers:
+  - url: /api/v1
+components:
+  parameters:
+    ActorId:
+      in: header
+      name: X-Actor-Id
+      required: true
+      schema: { type: string, format: uuid }
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      schema: { type: string, minLength: 16, maxLength: 128 }
+  schemas:
+    Error:
+      type: object
+      properties:
+        statusCode: { type: integer }
+        message: { type: string }
+    ReorderPolicyInput:
+      type: object
+      required: [warehouseId, skuId, supplierId, leadTimeDays, safetyStockQuantity, coverageDays, validFrom]
+      properties:
+        warehouseId: { type: string, format: uuid }
+        skuId: { type: string, format: uuid }
+        supplierId: { type: string, format: uuid }
+        leadTimeDays: { type: integer, minimum: 0 }
+        safetyStockQuantity: { type: integer, minimum: 0 }
+        coverageDays: { type: integer, minimum: 1 }
+        salesWindowDays: { type: integer, minimum: 1, default: 30 }
+        orderMultiple: { type: integer, minimum: 1, default: 1 }
+        minimumStockQuantity: { type: integer, minimum: 0 }
+        maximumStockQuantity: { type: integer, minimum: 1 }
+        validFrom: { type: string, format: date }
+        validUntil: { type: string, format: date }
+    EndpointInput:
+      type: object
+      required: [code, systemType, eventTypes]
+      properties:
+        code: { type: string }
+        systemType: { enum: [POS, ERP, ACCOUNTING, ECOMMERCE, NOTIFICATION, TEST] }
+        transport: { enum: [HTTP, MOCK], default: HTTP }
+        endpointUrl: { type: string, format: uri }
+        secretReference: { type: string, description: Environment/secret-store reference, never the secret value. }
+        maxAttempts: { type: integer, minimum: 1, default: 5 }
+        baseBackoffSeconds: { type: integer, minimum: 1, default: 5 }
+        eventTypes: { type: array, minItems: 1, items: { type: string } }
+paths:
+  /planning/policies:
+    post:
+      summary: Create an effective-dated ROP and safety-stock policy
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ReorderPolicyInput' } } }
+      responses: { '201': { description: Policy created or idempotently replayed }, '409': { description: Effective-period overlap } }
+    get:
+      summary: List effective replenishment policies
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: query, name: warehouseId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: businessDate, schema: { type: string, format: date } }
+      responses: { '200': { description: Effective policies } }
+  /planning/policies/{id}/deactivate:
+    post:
+      summary: Deactivate a replenishment policy with audit
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
+      responses: { '201': { description: Policy deactivated } }
+  /planning/runs:
+    post:
+      summary: Run deterministic ROP and create Draft PRs
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [warehouseId, businessDate], properties: { warehouseId: { type: string, format: uuid }, businessDate: { type: string, format: date } } } } }
+      responses: { '201': { description: Immutable planning snapshot and Draft PRs } }
+  /planning/runs/{id}:
+    get:
+      summary: Get planning inputs, formulas, results and drafts
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Planning run } }
+  /reports/dashboard:
+    get:
+      summary: Warehouse KPI and exception dashboard
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: query, name: warehouseId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: businessDate, required: true, schema: { type: string, format: date } }
+      responses: { '200': { description: Dashboard snapshot } }
+  /reports/inventory-activity:
+    get:
+      summary: Inbound, outbound, transfer, status and adjustment movement report
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: query, name: warehouseId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: from, required: true, schema: { type: string, format: date } }
+        - { in: query, name: to, required: true, schema: { type: string, format: date } }
+        - { in: query, name: skuId, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Movement summary and drill-down } }
+  /reports/quality-recall:
+    get:
+      summary: Quality, return, destruction and recall report
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: query, name: warehouseId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: from, required: true, schema: { type: string, format: date } }
+        - { in: query, name: to, required: true, schema: { type: string, format: date } }
+      responses: { '200': { description: Quality and recall snapshot } }
+  /reports/inventory-value:
+    get:
+      summary: Permission-separated cost and current inventory value report
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: query, name: warehouseId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: skuId, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Valued and explicitly unvalued inventory } }
+  /reports/supplier-kpi:
+    get:
+      summary: OTD, lead-time, fill, over-receipt, damage and return KPI
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: query, name: supplierId, required: true, schema: { type: string, format: uuid } }
+        - { in: query, name: from, required: true, schema: { type: string, format: date } }
+        - { in: query, name: to, required: true, schema: { type: string, format: date } }
+        - { in: query, name: timezone, required: true, schema: { type: string, example: Asia/Ho_Chi_Minh } }
+      responses: { '200': { description: Formula disclosure, KPI and PO/receipt drill-down } }
+  /reports/runs/{id}/export:
+    post:
+      summary: Export an immutable, permission-scoped report snapshot
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses: { '201': { description: Snapshot export metadata } }
+  /reports/exports/{id}:
+    get:
+      summary: Retrieve a time-limited report export
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Export content and metadata } }
+  /integrations/endpoints:
+    post:
+      summary: Configure an integration endpoint and event subscriptions
+      parameters: [{ $ref: '#/components/parameters/ActorId' }, { $ref: '#/components/parameters/IdempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/EndpointInput' } } } }
+      responses: { '201': { description: Endpoint configured } }
+    get:
+      summary: List endpoints without revealing secrets
+      parameters: [{ $ref: '#/components/parameters/ActorId' }]
+      responses: { '200': { description: Endpoints and subscriptions } }
+  /integrations/reconciliation:
+    get:
+      summary: Reconcile outbox and delivery status
+      parameters: [{ $ref: '#/components/parameters/ActorId' }]
+      responses: { '200': { description: Status totals and stale leases } }
+  /integrations/dead-letter:
+    get:
+      summary: List dead-letter deliveries
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 200 } }
+      responses: { '200': { description: Dead-letter queue } }
+  /integrations/events/{id}:
+    get:
+      summary: Get event, delivery attempts and replay history
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      responses: { '200': { description: Event reconciliation detail } }
+  /integrations/events/{id}/replay:
+    post:
+      summary: Replay a dead-letter event with audit
+      parameters:
+        - { $ref: '#/components/parameters/ActorId' }
+        - { in: path, name: id, required: true, schema: { type: string, format: uuid } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string } } } } } }
+      responses: { '201': { description: Event returned to pending delivery } }

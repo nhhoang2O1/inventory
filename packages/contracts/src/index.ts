@@ -8,6 +8,26 @@ export type ErrorCode =
   | 'IDEMPOTENCY_CONFLICT'
   | 'WHOLESALE_QUANTITY_REQUIRED'
   | 'MINIMUM_QUANTITY_NOT_MET'
+  | 'INVENTORY_ATP_INSUFFICIENT'
+  | 'FEFO_OVERRIDE_REQUIRED'
+  | 'MRSL_NOT_MET'
+  | 'PICK_CONFLICT'
+  | 'TRANSFER_STATE_CONFLICT'
+  | 'STOCKTAKE_STATE_CONFLICT'
+  | 'STOCKTAKE_SNAPSHOT_STALE'
+  | 'INVENTORY_LOCATION_STOCKTAKE_LOCKED'
+  | 'REVERSAL_STATE_CONFLICT'
+  | 'QUALITY_STATE_CONFLICT'
+  | 'QUALITY_SOURCE_CHANGED'
+  | 'QUALITY_HELD_STOCK_INSUFFICIENT'
+  | 'RETURN_STATE_CONFLICT'
+  | 'RECALL_STATE_CONFLICT'
+  | 'RECALL_ACTIVE_BATCH_BLOCKED'
+  | 'RECALL_UNSCOPED_STOCK'
+  | 'PLANNING_POLICY_OVERLAP'
+  | 'PLANNING_STATE_CONFLICT'
+  | 'INTEGRATION_STATE_CONFLICT'
+  | 'INTEGRATION_DELIVERY_FAILED'
   | 'INTERNAL_ERROR';
 
 export interface ProblemDetails {
@@ -140,4 +160,128 @@ export interface InventoryPostingLine {
 export interface InventoryPostingCommand {
   documentType: string; documentId: string; idempotencyKey: string; actorId: string;
   correlationId: string; reason?: string; lines: readonly InventoryPostingLine[];
+}
+
+export type IssueRequestStatus =
+  | 'DRAFT'
+  | 'SUBMITTED'
+  | 'APPROVED'
+  | 'ALLOCATED'
+  | 'PICKING'
+  | 'POSTED'
+  | 'CANCELLED';
+
+export interface FefoAllocationExplanation {
+  batchId: string;
+  locationId: string;
+  expirationDate: string;
+  firstReceivedDate?: string;
+  quantity: WholeCaseQuantity;
+  fefoRank: number;
+  overrideUsed: boolean;
+  overrideReason?: string;
+}
+
+export interface GoodsIssuePostingResult {
+  id: string;
+  goodsIssueCode: string;
+  status: 'POSTED';
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export type TransferStatus =
+  | 'DRAFT'
+  | 'APPROVED'
+  | 'PICKING'
+  | 'IN_TRANSIT'
+  | 'PARTIALLY_RECEIVED'
+  | 'RECEIVED'
+  | 'CLOSED'
+  | 'CANCELLED'
+  | 'REVERSED';
+
+export type StocktakeStatus =
+  | 'PLANNED'
+  | 'COUNTING'
+  | 'RECOUNT'
+  | 'RECONCILED'
+  | 'PENDING_APPROVAL'
+  | 'POSTED'
+  | 'CANCELLED';
+
+export type ReversalStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'POSTED' | 'CANCELLED';
+
+export interface TransferPostingResult {
+  id: string;
+  status: TransferStatus;
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export interface StocktakePostingResult {
+  id: string;
+  adjustmentId: string;
+  status: 'POSTED';
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export interface ReversalPostingResult {
+  id: string;
+  status: 'POSTED';
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export type QualityCaseStatus = 'DRAFT' | 'CONTAINED' | 'PENDING_DISPOSITION' | 'CLOSED' | 'CANCELLED';
+export type QualityDispositionStatus = 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'POSTED';
+export type CustomerReturnStatus = 'DRAFT' | 'APPROVED' | 'POSTED' | 'CLOSED' | 'CANCELLED';
+export type RecallStatus = 'DRAFT' | 'APPROVED' | 'CONTAINED' | 'CLOSED' | 'CANCELLED';
+
+export interface QualityPostingResult {
+  id: string;
+  status: 'CONTAINED' | 'POSTED';
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export interface RecallContainmentResult {
+  id: string;
+  status: 'CONTAINED';
+  qualityCaseIds: readonly string[];
+  movementIds: readonly string[];
+  replayed: boolean;
+}
+
+export type DraftPurchaseRequestStatus = 'DRAFT' | 'SUBMITTED' | 'CANCELLED' | 'CONVERTED';
+export interface ReplenishmentResult {
+  skuId: string;
+  warehouseId: string;
+  atp: number;
+  reliableInbound: number;
+  averageDailySales: number;
+  leadTimeDemand: number;
+  safetyStockQuantity: number;
+  reorderPoint: number;
+  suggestedQuantity: number;
+  orderMultiple: number;
+}
+
+export interface SupplierKpiResult {
+  otdPercent: number;
+  averageFirstReceiptLeadTimeDays: number;
+  averageCompleteReceiptLeadTimeDays: number;
+  fillRatePercent: number;
+  overReceiptQuantity: number;
+  damageRatePercent: number;
+  returnRatePercent: number;
+}
+
+export type IntegrationDeliveryStatus = 'PENDING' | 'PROCESSING' | 'PUBLISHED' | 'FAILED' | 'DEAD_LETTER';
+export interface IntegrationReconciliation {
+  generatedAt: string;
+  outbox: Readonly<Record<string, number>>;
+  deliveries: Readonly<Record<string, { count: number; maximumAttemptsObserved: number }>>;
+  staleProcessing: { events: number; deliveries: number };
 }

@@ -357,6 +357,17 @@ export class GoodsReceiptService {
           throw new Error('Failed to post movement to inventory ledger');
         }
         movementIds.push(movementId);
+
+        // FEFO tie-break uses the earliest physical receipt date after expiration date.
+        await client.query(
+          `UPDATE inventory.batch
+           SET first_received_date = least(
+             coalesce(first_received_date, $2::date),
+             $2::date
+           )
+           WHERE id = $1`,
+          [line.batch_id, gr.received_date]
+        );
       }
 
       // 6. Update PO status
