@@ -25,7 +25,14 @@ export class AuthService {
     const hash = parts[1];
     if (!salt || !hash) return false;
     const verifyHash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-    return hash === verifyHash;
+    return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(verifyHash, 'hex'));
+  }
+
+  /**
+   * Hash session token using SHA-256
+   */
+  hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   /**
@@ -79,10 +86,30 @@ export class AuthService {
   }
 
   /**
-   * Validate user credentials and return session details
+   * Validate user credentials and return session details with session token
    */
-  async login(username: string, password: string) {
+  async login(username: string, password: string, correlationId: string = crypto.randomUUID()) {
     const normalizedUsername = username.trim().toLowerCase();
+
+    // Check throttling for failed attempts in last 5 minutes
+    try {
+      const failedAttempts = await this.db.query<{ count: string }>(
+        `SELECT count(*)::text as count FROM iam.auth_login_attempt
+         WHERE username = $1 AND outcome IN ('FAILED', 'THROTTLED')
+         AND occurred_at > now() - interval '5 minutes'`,
+        [normalizedUsername]
+      );
+      if (Number(failedAttempts[0]?.count || 0) >= 10) {
+        await this.db.query(
+          `INSERT INTO iam.auth_login_attempt (username, outcome, correlation_id)
+           VALUES ($1, 'THROTTLED', $2)`,
+          [normalizedUsername, correlationId]
+        ).catch(() => {});
+        throw new UnauthorizedException('Tài khoản bị tạm khóa ngắn do thử đăng nhập sai quá nhiều lần. Vui lòng thử lại sau 5 phút.');
+      }
+    } catch (e: any) {
+      if (e instanceof UnauthorizedException) throw e;
+    }
 
     // Query user and join with roles
     const users = await this.db.query<{
@@ -103,6 +130,11 @@ export class AuthService {
 
     const user = users[0];
     if (!user) {
+      await this.db.query(
+        `INSERT INTO iam.auth_login_attempt (username, outcome, correlation_id)
+         VALUES ($1, 'FAILED', $2)`,
+        [normalizedUsername, correlationId]
+      ).catch(() => {});
       throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không chính xác.');
     }
 
@@ -116,8 +148,32 @@ export class AuthService {
 
     const isValid = this.verifyPassword(password, user.password_hash);
     if (!isValid) {
+      await this.db.query(
+        `INSERT INTO iam.auth_login_attempt (username, user_id, outcome, correlation_id)
+         VALUES ($1, $2, 'FAILED', $3)`,
+        [normalizedUsername, user.id, correlationId]
+      ).catch(() => {});
       throw new UnauthorizedException('Tên đăng nhập hoặc mật khẩu không chính xác.');
     }
+
+    // Log successful attempt
+    await this.db.query(
+      `INSERT INTO iam.auth_login_attempt (username, user_id, outcome, correlation_id)
+       VALUES ($1, $2, 'SUCCEEDED', $3)`,
+      [normalizedUsername, user.id, correlationId]
+    ).catch(() => {});
+
+    // Generate session token (opaque 32-byte hex)
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = this.hashToken(rawToken);
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes session
+
+    // Save session in iam.auth_session
+    await this.db.query(
+      `INSERT INTO iam.auth_session (user_id, token_hash, correlation_id, expires_at)
+       VALUES ($1, $2, $3, $4)`,
+      [user.id, tokenHash, correlationId, expiresAt.toISOString()]
+    );
 
     // Get active warehouse scopes
     const scopes = await this.db.query<{ warehouse_id: string; warehouse_name: string; warehouse_code: string }>(
@@ -135,6 +191,8 @@ export class AuthService {
     else if (user.role_code === 'SALES') userRole = 'Sales';
 
     return {
+      sessionToken: rawToken,
+      expiresAt: expiresAt.toISOString(),
       userId: user.id,
       username: user.username,
       displayName: user.display_name,
@@ -145,5 +203,41 @@ export class AuthService {
         code: s.warehouse_code
       }))
     };
+  }
+
+  /**
+   * Revoke session on logout
+   */
+  async logout(sessionToken: string) {
+    if (!sessionToken) return { success: true };
+    const tokenHash = this.hashToken(sessionToken);
+    await this.db.query(
+      `UPDATE iam.auth_session SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL`,
+      [tokenHash]
+    );
+    return { success: true };
+  }
+
+  /**
+   * Validate session token
+   */
+  async validateSession(sessionToken: string) {
+    if (!sessionToken) return null;
+    const tokenHash = this.hashToken(sessionToken);
+    const sessions = await this.db.query<{
+      user_id: string;
+      expires_at: string;
+      username: string;
+      display_name: string;
+      role_code: string;
+    }>(
+      `SELECT s.user_id, s.expires_at, u.username, u.display_name, r.code as role_code
+       FROM iam.auth_session s
+       JOIN iam.app_user u ON s.user_id = u.id
+       JOIN iam.role r ON u.role_id = r.id
+       WHERE s.token_hash = $1 AND s.revoked_at IS NULL AND s.expires_at > now()`,
+      [tokenHash]
+    );
+    return sessions[0] || null;
   }
 }

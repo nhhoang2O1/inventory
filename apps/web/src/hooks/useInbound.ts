@@ -47,36 +47,56 @@ export function useInbound(actorId: string, warehouseId: string, warehouseCode: 
       // Fetch POs
       fetch('/api/v1/purchase-orders', {
         headers: { 'x-actor-id': actorId }
-      }).then(res => res.json()),
+      }).then(res => res.json()).catch(() => []),
 
       // Fetch Locations
       fetch(`/api/v1/inventory/locations?warehouseId=${warehouseId}`, {
         headers: { 'x-actor-id': actorId }
-      }).then(res => res.json()),
+      }).then(res => res.json()).catch(() => []),
 
       // Fetch SKUs
       fetch('/api/v1/inventory/skus', {
         headers: { 'x-actor-id': actorId }
-      }).then(res => res.json())
+      }).then(res => res.json()).catch(() => [])
     ])
       .then(([posData, locsData, skusData]) => {
-        // Filter POs by warehouse code matching, and only APPROVED / PARTIALLY_RECEIVED status
-        const filteredPos = (posData || []).filter((po: any) => {
-          const belongsToWarehouse = po.po_code.includes(`PO-${warehouseCode}-`) || po.po_code.includes(warehouseCode);
-          const isEligible = ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'DRAFT'].includes(po.status);
+        const posList = Array.isArray(posData) ? posData : [];
+        const locsList = Array.isArray(locsData) ? locsData : [];
+        const rawSkus = Array.isArray(skusData) ? skusData : [];
+
+        // Filter clean active SKUs only
+        const skusList = rawSkus.filter((sku: any) => {
+          if (!sku || typeof sku !== 'object') return false;
+          const code = sku.code || '';
+          const name = sku.name || '';
+          const isTest = code.includes('_') || name.includes('Phase') || name.includes('test') || code.startsWith('SP');
+          const isActive = sku.status ? sku.status === 'ACTIVE' : true;
+          return isActive && !isTest;
+        });
+
+        // Filter POs by warehouse code matching or warehouse_id, and active status
+        const filteredPos = posList.filter((po: any) => {
+          if (!po || typeof po !== 'object') return false;
+          const poCode = po.po_code || '';
+          const belongsToWarehouse = !warehouseCode || poCode.includes(`PO-${warehouseCode}-`) || poCode.includes(warehouseCode) || po.warehouse_id === warehouseId;
+          const isEligible = ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'DRAFT', 'SUBMITTED'].includes(po.status);
           return belongsToWarehouse && isEligible;
         });
 
-        setPurchaseOrders(filteredPos);
-        setLocationsList(locsData || []);
-        setSkusList(skusData || []);
+        // Fallback: If no filtered POs match warehouse code, use any active POs
+        const finalPos = filteredPos.length > 0 ? filteredPos : posList.filter((po: any) => po && ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'DRAFT', 'SUBMITTED'].includes(po.status));
 
-        if (filteredPos.length > 0) {
-          setSelectedPoId(filteredPos[0].id);
+        setPurchaseOrders(finalPos);
+        setLocationsList(locsList);
+        setSkusList(skusList);
+
+        if (finalPos.length > 0) {
+          setSelectedPoId(finalPos[0].id);
         } else {
           setSelectedPoId('');
           setInboundItems([]);
         }
+        setError(null);
       })
       .catch(err => {
         console.error('Failed to load inbound data:', err);
@@ -295,6 +315,7 @@ export function useInbound(actorId: string, warehouseId: string, warehouseCode: 
     selectedPoId,
     setSelectedPoId,
     locationsList,
+    skusList,
     inboundItems,
     setInboundItems,
     returnedCrateQty,

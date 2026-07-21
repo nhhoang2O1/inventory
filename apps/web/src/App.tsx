@@ -26,10 +26,10 @@ export function App() {
   const inbound = useInbound(auth.userId, auth.selectedWarehouseId, auth.selectedWarehouseCode);
 
   // 3. ViewModel: Outbound picking states
-  const outbound = useOutbound(auth.setView);
+  const outbound = useOutbound(auth.setView, auth.userId, auth.selectedWarehouseId, auth.selectedWarehouseCode);
 
   // 4. ViewModel: Approval tickets states
-  const approval = useApproval(auth.username);
+  const approval = useApproval(auth.userId);
 
   // 5. Shared local presentation states (Tabs filters & selections)
   const [financialSubTab, setFinancialSubTab] = useState<FinancialSubTab>('valuation');
@@ -109,6 +109,7 @@ export function App() {
               selectedPoId={inbound.selectedPoId}
               setSelectedPoId={inbound.setSelectedPoId}
               locationsList={inbound.locationsList}
+              skusList={inbound.skusList}
               isLoading={inbound.isLoading}
               error={inbound.error}
             />
@@ -144,6 +145,9 @@ export function App() {
               setFinancialSubTab={setFinancialSubTab}
               selectedPartnerId={selectedPartnerId}
               setSelectedPartnerId={setSelectedPartnerId}
+              actorId={auth.userId}
+              warehouseId={auth.selectedWarehouseId}
+              warehouseCode={auth.selectedWarehouseCode}
             />
           )}
 

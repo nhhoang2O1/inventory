@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { UserRole, ViewType } from '../types';
 
 export function useAuth() {
@@ -10,10 +10,38 @@ export function useAuth() {
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [userId, setUserId] = useState('');
   const [username, setUsername] = useState('manager');
-  const [password, setPassword] = useState('123456');
+  const [password, setPassword] = useState('WmsDemo2026!');
   const [userRole, setUserRole] = useState<UserRole>('Manager');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Restore session from localStorage on initial load
+  useEffect(() => {
+    const savedToken = localStorage.getItem('sessionToken');
+    const savedUserId = localStorage.getItem('userId');
+    const savedRole = localStorage.getItem('userRole');
+    const savedWarehouses = localStorage.getItem('warehouses');
+    const savedWarehouseId = localStorage.getItem('selectedWarehouseId');
+    const savedWarehouseCode = localStorage.getItem('selectedWarehouseCode');
+    const savedWarehouseName = localStorage.getItem('selectedWarehouse');
+    const savedUsername = localStorage.getItem('username');
+
+    if (savedToken && savedUserId) {
+      setIsLoggedIn(true);
+      setUserId(savedUserId);
+      if (savedUsername) setUsername(savedUsername);
+      if (savedRole) setUserRole(savedRole as UserRole);
+      if (savedWarehouses) {
+        try {
+          setWarehouses(JSON.parse(savedWarehouses));
+        } catch (e) {}
+      }
+      if (savedWarehouseId) setSelectedWarehouseId(savedWarehouseId);
+      if (savedWarehouseCode) setSelectedWarehouseCode(savedWarehouseCode);
+      if (savedWarehouseName) setSelectedWarehouse(savedWarehouseName);
+      setView('dashboard');
+    }
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,8 +61,18 @@ export function useAuth() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
+        throw new Error(data.detail || data.message || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
       }
+
+      // Save session tokens & user metadata to localStorage
+      if (data.sessionToken) localStorage.setItem('sessionToken', data.sessionToken);
+      if (data.userId) {
+        localStorage.setItem('actorId', data.userId);
+        localStorage.setItem('userId', data.userId);
+      }
+      if (username) localStorage.setItem('username', username);
+      if (data.userRole) localStorage.setItem('userRole', data.userRole);
+      if (data.warehouses) localStorage.setItem('warehouses', JSON.stringify(data.warehouses));
 
       // Login successful
       setIsLoggedIn(true);
@@ -44,9 +82,15 @@ export function useAuth() {
 
       // Select first warehouse if returned, otherwise default
       if (data.warehouses && data.warehouses.length > 0) {
-        setSelectedWarehouse(data.warehouses[0].name);
-        setSelectedWarehouseId(data.warehouses[0].id);
-        setSelectedWarehouseCode(data.warehouses[0].code);
+        const whName = data.warehouses[0].name;
+        const whId = data.warehouses[0].id;
+        const whCode = data.warehouses[0].code;
+        setSelectedWarehouse(whName);
+        setSelectedWarehouseId(whId);
+        setSelectedWarehouseCode(whCode);
+        localStorage.setItem('selectedWarehouse', whName);
+        localStorage.setItem('selectedWarehouseId', whId);
+        localStorage.setItem('selectedWarehouseCode', whCode);
       }
       setView('dashboard');
     } catch (err: any) {
@@ -56,14 +100,35 @@ export function useAuth() {
     }
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setView('login');
-    setPassword('');
-    setUserId('');
-    setWarehouses([]);
-    setSelectedWarehouseId('');
-    setSelectedWarehouseCode('');
+  const handleLogout = async () => {
+    try {
+      const sessionToken = localStorage.getItem('sessionToken');
+      if (sessionToken) {
+        await fetch('/api/v1/iam/auth/logout', {
+          method: 'POST',
+          headers: {
+            'X-Session-Token': sessionToken
+          }
+        }).catch(() => {});
+      }
+    } finally {
+      localStorage.removeItem('sessionToken');
+      localStorage.removeItem('actorId');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('username');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('warehouses');
+      localStorage.removeItem('selectedWarehouse');
+      localStorage.removeItem('selectedWarehouseId');
+      localStorage.removeItem('selectedWarehouseCode');
+      setIsLoggedIn(false);
+      setView('login');
+      setPassword('');
+      setUserId('');
+      setWarehouses([]);
+      setSelectedWarehouseId('');
+      setSelectedWarehouseCode('');
+    }
   };
 
   return {

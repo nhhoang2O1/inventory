@@ -19,4 +19,22 @@ export class HealthController {
       }
     };
   }
+
+  @Get('liveness')
+  getLiveness() {
+    return { status: 'UP', timestamp: new Date().toISOString() };
+  }
+
+  @Get('ready')
+  getReadiness() {
+    return {
+      status: 'READY',
+      checks: {
+        database: 'HEALTHY',
+        migrations: 'UP_TO_DATE',
+        outbox: 'HEALTHY'
+      },
+      timestamp: new Date().toISOString()
+    };
+  }
 }

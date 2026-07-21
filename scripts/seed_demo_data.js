@@ -248,42 +248,63 @@ async function seed() {
         `, [skus[b.sku], b.code, b.mfg, b.exp]);
         const batchId = bRes.rows[0]?.id || (await client.query('SELECT id FROM inventory.batch WHERE sku_id = $1 AND batch_code = $2', [skus[b.sku], b.code])).rows[0].id;
 
+        // Helper to insert balance and matching movement ledger entry for zero variance
+        const seedBalance = async (skuId, batchId, locId, status, qty) => {
+          await client.query(`
+            INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version)
+            VALUES ($1, $2, $3, $4, $5, $6, 1)
+          `, [skuId, batchId, whId, locId, status, qty]);
+          await client.query(`
+            INSERT INTO inventory.inventory_movement_ledger (
+              movement_type, document_type, document_id, command_key,
+              sku_id, batch_id, quantity,
+              destination_warehouse_id, destination_location_id, destination_status,
+              actor_id, correlation_id, reason
+            ) VALUES (
+              'RECEIPT', 'SEED_INITIAL', gen_random_uuid(), gen_random_uuid(),
+              $1, $2, $3,
+              $4, $5, $6,
+              (SELECT id FROM iam.app_user WHERE username = 'manager' LIMIT 1), gen_random_uuid(), 'Initial seed'
+            )
+          `, [skuId, batchId, qty, whId, locId, status]);
+        };
+
         // Warehouse-specific Balances
         if (whCode === 'KHO-A') {
           if (b.code === 'B-HN-SILVER-01') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 250, 1)`, [skus[b.sku], batchId, whId, locations['Z1-A12']]);
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'QUARANTINED', 50, 1)`, [skus[b.sku], batchId, whId, locations['LOC-QUAR']]);
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'DAMAGED', 15, 1)`, [skus[b.sku], batchId, whId, locations['LOC-DAMG']]);
+            await seedBalance(skus[b.sku], batchId, locations['Z1-A12'], 'AVAILABLE', 250);
+            await seedBalance(skus[b.sku], batchId, locations['LOC-QUAR'], 'QUARANTINED', 50);
+            await seedBalance(skus[b.sku], batchId, locations['LOC-DAMG'], 'DAMAGED', 15);
           } else if (b.code === 'B-HN-ORIG-01') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 180, 1)`, [skus[b.sku], batchId, whId, locations['Z2-B04']]);
+            await seedBalance(skus[b.sku], batchId, locations['Z2-B04'], 'AVAILABLE', 180);
           } else if (b.code === 'B-TIG-CRYST-01') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 300, 1)`, [skus[b.sku], batchId, whId, locations['Z3-C01']]);
+            await seedBalance(skus[b.sku], batchId, locations['Z3-C01'], 'AVAILABLE', 300);
           } else if (b.code === 'B-HN-SILVER-NEAR-EXP') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 80, 1)`, [skus[b.sku], batchId, whId, locations['Z1-A12']]);
+            await seedBalance(skus[b.sku], batchId, locations['Z1-A12'], 'AVAILABLE', 80);
           } else if (b.code === 'B-HN-SILVER-EXP') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'EXPIRED', 30, 1)`, [skus[b.sku], batchId, whId, locations['LOC-DAMG']]);
+            await seedBalance(skus[b.sku], batchId, locations['LOC-DAMG'], 'EXPIRED', 30);
           }
         } else if (whCode === 'KHO-B') {
           if (b.code === 'B-COCA-320-01') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 350, 1)`, [skus[b.sku], batchId, whId, locations['Z1-A12']]);
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'DAMAGED', 10, 1)`, [skus[b.sku], batchId, whId, locations['LOC-DAMG']]);
+            await seedBalance(skus[b.sku], batchId, locations['Z1-A12'], 'AVAILABLE', 350);
+            await seedBalance(skus[b.sku], batchId, locations['LOC-DAMG'], 'DAMAGED', 10);
           } else if (b.code === 'B-PEPSI-320-01') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 280, 1)`, [skus[b.sku], batchId, whId, locations['Z2-B04']]);
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'QUARANTINED', 25, 1)`, [skus[b.sku], batchId, whId, locations['LOC-QUAR']]);
+            await seedBalance(skus[b.sku], batchId, locations['Z2-B04'], 'AVAILABLE', 280);
+            await seedBalance(skus[b.sku], batchId, locations['LOC-QUAR'], 'QUARANTINED', 25);
           } else if (b.code === 'B-TIG-CRYST-BTL-01') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 120, 1)`, [skus[b.sku], batchId, whId, locations['Z3-C01']]);
+            await seedBalance(skus[b.sku], batchId, locations['Z3-C01'], 'AVAILABLE', 120);
           }
         } else if (whCode === 'KHO-C') {
           if (b.code === 'B-HN-SILVER-01') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 500, 1)`, [skus[b.sku], batchId, whId, locations['Z1-A12']]);
+            await seedBalance(skus[b.sku], batchId, locations['Z1-A12'], 'AVAILABLE', 500);
           } else if (b.code === 'B-COCA-320-01') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 450, 1)`, [skus[b.sku], batchId, whId, locations['Z2-B04']]);
+            await seedBalance(skus[b.sku], batchId, locations['Z2-B04'], 'AVAILABLE', 450);
           } else if (b.code === 'B-TIG-CRYST-01') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'AVAILABLE', 600, 1)`, [skus[b.sku], batchId, whId, locations['Z3-C01']]);
+            await seedBalance(skus[b.sku], batchId, locations['Z3-C01'], 'AVAILABLE', 600);
           } else if (b.code === 'B-HN-ORIG-01') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'QUARANTINED', 100, 1)`, [skus[b.sku], batchId, whId, locations['LOC-QUAR']]);
+            await seedBalance(skus[b.sku], batchId, locations['LOC-QUAR'], 'QUARANTINED', 100);
           } else if (b.code === 'B-HN-SILVER-EXP') {
-            await client.query(`INSERT INTO inventory.inventory_balance (sku_id, batch_id, warehouse_id, location_id, stock_status, quantity_on_hand, version) VALUES ($1, $2, $3, $4, 'EXPIRED', 40, 1)`, [skus[b.sku], batchId, whId, locations['LOC-DAMG']]);
+            await seedBalance(skus[b.sku], batchId, locations['LOC-DAMG'], 'EXPIRED', 40);
           }
         }
       }

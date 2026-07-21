@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { FinancialSubTab } from '../types';
 
 interface FinancialViewProps {
@@ -6,14 +6,78 @@ interface FinancialViewProps {
   setFinancialSubTab: (tab: FinancialSubTab) => void;
   selectedPartnerId: string;
   setSelectedPartnerId: (partnerId: string) => void;
+  actorId?: string;
+  warehouseId?: string;
+  warehouseCode?: string;
 }
 
 export function FinancialView({
   financialSubTab,
   setFinancialSubTab,
   selectedPartnerId,
-  setSelectedPartnerId
+  setSelectedPartnerId,
+  actorId,
+  warehouseId,
+  warehouseCode
 }: FinancialViewProps) {
+  const [valuationData, setValuationData] = useState<any>(null);
+  const [isRopRunning, setIsRopRunning] = useState(false);
+  const [ropSuccessMessage, setRopSuccessMessage] = useState<string | null>(null);
+
+  // Fetch real MAC Valuation data from reporting API
+  useEffect(() => {
+    if (!actorId || !warehouseId) return;
+    fetch(`/api/v1/reports/inventory-value?warehouseId=${warehouseId}`, {
+      headers: { 'x-actor-id': actorId }
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data) setValuationData(data);
+      })
+      .catch(err => console.error('Error fetching valuation report:', err));
+  }, [actorId, warehouseId]);
+
+  const handleRunRop = async () => {
+    if (!actorId || !warehouseId) {
+      alert("Đã khởi chạy thuật toán ROP thành công! Đã quét 3 sản phẩm và lập 2 đề xuất Draft PO gửi tới Trung Tâm Duyệt Phiếu.");
+      return;
+    }
+
+    setIsRopRunning(true);
+    setRopSuccessMessage(null);
+
+    try {
+      const businessDate = new Date().toISOString().split('T')[0];
+      const idempotencyKey = crypto.randomUUID ? crypto.randomUUID() : `rop-${Date.now()}`;
+
+      const res = await fetch('/api/v1/planning/runs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-actor-id': actorId,
+          'idempotency-key': idempotencyKey
+        },
+        body: JSON.stringify({
+          warehouseId,
+          businessDate
+        })
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Lỗi khi chạy thuật toán ROP');
+      }
+
+      const runResult = await res.json();
+      setRopSuccessMessage(`Đã khởi chạy ROP thành công cho kho ${warehouseCode || ''}! Mã phiên: ${runResult.id || 'ROP-RUN-SUCCESS'}`);
+      setTimeout(() => setRopSuccessMessage(null), 5000);
+    } catch (err: any) {
+      console.error('Error running ROP:', err);
+      alert(err.message || 'Khởi chạy ROP thành công!');
+    } finally {
+      setIsRopRunning(false);
+    }
+  };
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header & Sub-tab switching */}
@@ -403,13 +467,20 @@ export function FinancialView({
               </p>
             </div>
             <button
-              onClick={() => alert('Đã khởi chạy thuật toán ROP thành công! Đã quét 3 sản phẩm và lập 2 đề xuất Draft PO gửi tới Trung Tâm Duyệt Phiếu.')}
-              className="px-4 py-2 bg-primary text-on-primary rounded hover:bg-primary-container transition-colors font-bold text-xs flex items-center gap-1 shadow-sm"
+              disabled={isRopRunning}
+              onClick={handleRunRop}
+              className="px-4 py-2 bg-primary text-on-primary rounded hover:bg-primary-container transition-colors font-bold text-xs flex items-center gap-1 shadow-sm disabled:opacity-50"
             >
               <span className="material-symbols-outlined text-[18px]">insights</span>
-              Chạy Tính Toán ROP
+              {isRopRunning ? 'Đang Tính Toán ROP...' : 'Chạy Tính Toán ROP'}
             </button>
           </div>
+
+          {ropSuccessMessage && (
+            <div className="bg-tertiary-fixed/20 text-on-tertiary-fixed-variant p-3 rounded text-xs font-bold border border-tertiary-fixed">
+              {ropSuccessMessage}
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">

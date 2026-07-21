@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { apiClient } from '../apiClient';
 
 export interface TransferItem {
   id: string;
@@ -58,18 +59,18 @@ export function useInventory(actorId: string, warehouseId: string) {
   const [selectedZoneId, setSelectedZoneId] = useState('');
 
   const fetchAllData = () => {
-    if (!actorId || !warehouseId) return;
+    if (!warehouseId) return;
     setIsLoading(true);
     setError(null);
 
     Promise.all([
-      fetch(`/api/v1/inventory/positions?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/reservations?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/transfers?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/stocktakes?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/warehouses`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/locations?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json()),
-      fetch(`/api/v1/inventory/zones?warehouseId=${warehouseId}`, { headers: { 'x-actor-id': actorId } }).then(res => res.json())
+      apiClient(`/inventory/positions`, { params: { warehouseId } }),
+      apiClient(`/inventory/reservations`, { params: { warehouseId } }),
+      apiClient(`/transfers`, { params: { warehouseId } }),
+      apiClient(`/stocktakes`, { params: { warehouseId } }),
+      apiClient(`/inventory/warehouses`),
+      apiClient(`/inventory/locations`, { params: { warehouseId } }),
+      apiClient(`/inventory/zones`, { params: { warehouseId } })
     ])
       .then(([posData, resData, trfData, stkData, whData, locData, zoneData]) => {
         setPositions(Array.isArray(posData) ? posData : []);
@@ -101,11 +102,9 @@ export function useInventory(actorId: string, warehouseId: string) {
     if (!pos) return;
 
     setIsLoading(true);
-    fetch('/api/v1/transfers', {
+    apiClient('/transfers', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-actor-id': actorId,
         'idempotency-key': `trf-${Date.now()}`
       },
       body: JSON.stringify({
@@ -124,10 +123,6 @@ export function useInventory(actorId: string, warehouseId: string) {
         ]
       })
     })
-      .then(res => {
-        if (!res.ok) return res.text().then(t => { throw new Error(t) });
-        return res.json();
-      })
       .then(trf => {
         alert(`Đã lập yêu cầu chuyển kho thành công với mã ${trf.transfer_code || trf.id}.`);
         setDestWarehouseId('');
@@ -143,11 +138,9 @@ export function useInventory(actorId: string, warehouseId: string) {
   const handleCreateStocktake = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    fetch('/api/v1/stocktakes', {
+    apiClient('/stocktakes', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-actor-id': actorId,
         'idempotency-key': `stk-${Date.now()}`
       },
       body: JSON.stringify({
@@ -157,10 +150,6 @@ export function useInventory(actorId: string, warehouseId: string) {
         blindCount: true
       })
     })
-      .then(res => {
-        if (!res.ok) return res.text().then(t => { throw new Error(t) });
-        return res.json();
-      })
       .then(stk => {
         alert(`Đã khởi tạo phiên kiểm kê thành công với mã ${stk.session_code || stk.id}. Khu vực kiểm kê đã được khóa cứng đề phòng biến động tồn kho.`);
         setSelectedZoneId('');

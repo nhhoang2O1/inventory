@@ -19,6 +19,7 @@ interface InboundViewProps {
   selectedPoId: string;
   setSelectedPoId: (id: string) => void;
   locationsList: any[];
+  skusList?: any[];
   isLoading: boolean;
   error: string | null;
 }
@@ -41,6 +42,7 @@ export function InboundView({
   selectedPoId,
   setSelectedPoId,
   locationsList,
+  skusList = [],
   isLoading,
   error
 }: InboundViewProps) {
@@ -127,8 +129,41 @@ export function InboundView({
                 {inboundItems.map((item, index) => (
                   <tr key={index} className="hover:bg-surface-bright transition-colors group">
                     <td className="p-3">
-                      <div className="font-data-mono text-primary font-bold">{item.sku}</div>
-                      <div className="text-on-surface-variant font-semibold truncate max-w-[150px]">{item.name}</div>
+                      {skusList && skusList.length > 0 ? (
+                        <select
+                          value={item.skuId}
+                          onChange={(e) => {
+                            const selectedSku = skusList.find(s => s.id === e.target.value);
+                            if (selectedSku) {
+                              const updated = [...inboundItems];
+                              const prev = updated[index];
+                              if (prev) {
+                                updated[index] = {
+                                  ...prev,
+                                  skuId: selectedSku.id,
+                                  sku: selectedSku.code,
+                                  name: selectedSku.name,
+                                  unit: selectedSku.uom_code || 'CASE',
+                                  ratio: selectedSku.ratio || 24
+                                };
+                                setInboundItems(updated);
+                              }
+                            }
+                          }}
+                          className="w-full px-2 py-1 border border-outline-variant rounded font-data-mono text-primary font-bold text-xs bg-surface focus:border-secondary focus:ring-1 focus:ring-secondary outline-none"
+                        >
+                          {skusList.map((sku) => (
+                            <option key={sku.id} value={sku.id}>
+                              {sku.code} - {sku.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <>
+                          <div className="font-data-mono text-primary font-bold">{item.sku}</div>
+                          <div className="text-on-surface-variant font-semibold truncate max-w-[150px]">{item.name}</div>
+                        </>
+                      )}
                     </td>
                     <td className="p-3 text-on-surface-variant font-semibold">{item.unit} (1:{item.ratio})</td>
                     <td className="p-3 text-right">
