@@ -9,6 +9,7 @@ function quantity(value:unknown){if(!Number.isSafeInteger(value)||Number(value)<
 export class InventoryController {
   constructor(private readonly service:InventoryApplicationService){}
   @Get('skus') skus(@Headers('x-actor-id') actor:string|undefined){return this.service.skus(requiredUuid(actor,'actorId'));}
+  @Post('skus') createSku(@Headers('x-actor-id') actor:string|undefined, @Body() body: { code: string; name: string; uomCode?: string; ratio?: number; barcode?: string }) { return this.service.createSku(requiredUuid(actor,'actorId'), body); }
   @Get('users') users(@Headers('x-actor-id') actor:string|undefined){return this.service.users(requiredUuid(actor,'actorId'));}
   @Get('warehouses') warehouses(@Headers('x-actor-id') actor:string|undefined){return this.service.warehouses(requiredUuid(actor,'actorId'));}
   @Get('zones') zones(@Headers('x-actor-id') actor:string|undefined,@Query('warehouseId') warehouse:string|undefined){return this.service.zones(requiredUuid(actor,'actorId'),requiredUuid(warehouse,'warehouseId'));}

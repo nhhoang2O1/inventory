@@ -3,6 +3,8 @@ import { InboundItem } from '../types';
 
 interface InboundViewProps {
   operatorId: string;
+  userRole?: string;
+  warehouseCode?: string;
   inboundItems: InboundItem[];
   setInboundItems: (items: InboundItem[]) => void;
   handleInboundQtyChange: (index: number, val: string) => void;
@@ -20,12 +22,15 @@ interface InboundViewProps {
   setSelectedPoId: (id: string) => void;
   locationsList: any[];
   skusList?: any[];
+  fetchSkus?: () => Promise<any>;
   isLoading: boolean;
   error: string | null;
 }
 
 export function InboundView({
   operatorId,
+  userRole = 'MANAGER',
+  warehouseCode = 'KHO-A',
   inboundItems,
   setInboundItems,
   handleInboundQtyChange,
@@ -43,10 +48,91 @@ export function InboundView({
   setSelectedPoId,
   locationsList,
   skusList = [],
+  fetchSkus,
   isLoading,
   error
 }: InboundViewProps) {
+  const [showAddSkuModal, setShowAddSkuModal] = React.useState(false);
+  const [newSkuCode, setNewSkuCode] = React.useState('');
+  const [newSkuName, setNewSkuName] = React.useState('');
+  const [newSkuUnit, setNewSkuUnit] = React.useState('CASE');
+  const [newSkuRatio, setNewSkuRatio] = React.useState('24');
+  const [newSkuBarcode, setNewSkuBarcode] = React.useState('');
+  const [skuError, setSkuError] = React.useState<string | null>(null);
+  const [isCreatingSku, setIsCreatingSku] = React.useState(false);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const names = Array.from(e.target.files).map(f => f.name);
+      setUploadedFiles([...uploadedFiles, ...names]);
+      e.target.value = '';
+    }
+  };
+
   const activePo = purchaseOrders.find(po => po.id === selectedPoId);
+
+  const handleCreateSkuSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSkuError(null);
+    if (!newSkuCode.trim() || !newSkuName.trim()) {
+      setSkuError('Mã SKU và Tên sản phẩm không được để trống.');
+      return;
+    }
+    setIsCreatingSku(true);
+    try {
+      const res = await fetch('/api/v1/inventory/skus', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-actor-id': '482538f3-1ea3-43a2-a07d-24b28a853742'
+        },
+        body: JSON.stringify({
+          code: newSkuCode.trim(),
+          name: newSkuName.trim(),
+          uomCode: newSkuUnit,
+          ratio: parseInt(newSkuRatio, 10) || 24,
+          barcode: newSkuBarcode.trim() || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Không thể tạo SKU mới.');
+      }
+      if (fetchSkus) {
+        await fetchSkus();
+      }
+      const mfgStr = new Date().toISOString().split('T')[0] || '';
+      const expStr = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString().split('T')[0] || '';
+      setInboundItems([
+        ...inboundItems,
+        {
+          skuId: data.id,
+          sku: data.code || newSkuCode.trim(),
+          name: data.name || newSkuName.trim(),
+          qty: 1,
+          unit: data.uom_code || newSkuUnit,
+          ratio: data.ratio || parseInt(newSkuRatio, 10) || 24,
+          batch: `B-${warehouseCode}-${Math.floor(1000 + Math.random() * 9000)}`,
+          mfg: mfgStr,
+          exp: expStr,
+          locationId: locationsList[0]?.id || '',
+          poLineId: '',
+          uomId: ''
+        }
+      ]);
+      setShowAddSkuModal(false);
+      setNewSkuCode('');
+      setNewSkuName('');
+      setNewSkuBarcode('');
+    } catch (err: any) {
+      setSkuError(err.message || 'Lỗi khi tạo SKU mới.');
+    } finally {
+      setIsCreatingSku(false);
+    }
+  };
+
+  const isManager = !userRole || userRole.toUpperCase().includes('MANAGER') || userRole.toLowerCase().includes('manager');
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -104,24 +190,34 @@ export function InboundView({
       {/* Bento Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Main Receipt Items Table */}
-        <div className="lg:col-span-8 bg-white border border-outline-variant rounded shadow-sm overflow-hidden flex flex-col">
+        <div className="lg:col-span-9 bg-white border border-outline-variant rounded shadow-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-outline-variant bg-surface flex justify-between items-center">
             <h3 className="font-headline-sm text-headline-sm text-on-background font-bold flex items-center gap-2">
               <span className="material-symbols-outlined text-primary">inventory</span>
               Danh Sách Hàng Nhập Kho (Strict Unit Policy)
             </h3>
+            {isManager && (
+              <button
+                type="button"
+                onClick={() => setShowAddSkuModal(true)}
+                className="px-3 py-1.5 bg-secondary text-on-secondary rounded text-xs font-bold flex items-center gap-1.5 hover:bg-secondary-container hover:text-on-secondary-container transition-colors shadow-xs"
+              >
+                <span className="material-symbols-outlined text-[16px]">add_box</span>
+                Khai Báo SKU Mới
+              </button>
+            )}
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[700px]">
-              <thead className="bg-surface-container-low border-b border-outline-variant font-label-caps text-label-caps text-on-surface-variant text-xs">
+          <div className="max-h-[500px] overflow-auto scrollbar-thin">
+            <table className="w-full text-left border-collapse min-w-[1050px]">
+              <thead className="bg-surface-container-low border-b border-outline-variant font-label-caps text-label-caps text-on-surface-variant text-xs sticky top-0 z-10 shadow-xs">
                 <tr>
-                  <th className="p-3 font-semibold">SKU / Tên Sản Phẩm</th>
-                  <th className="p-3 font-semibold w-28">Đơn Vị</th>
-                  <th className="p-3 font-semibold w-44 text-right">Số Nguyên Nhập (Thùng/Két)</th>
-                  <th className="p-3 font-semibold w-28">Số Lô (Batch)</th>
-                  <th className="p-3 font-semibold w-28">NSX / HSD</th>
-                  <th className="p-3 font-semibold w-32">Vị Trí Lưu Trữ</th>
+                  <th className="p-3 font-semibold min-w-[280px]">SKU / Tên Sản Phẩm</th>
+                  <th className="p-3 font-semibold min-w-[110px]">Đơn Vị</th>
+                  <th className="p-3 font-semibold min-w-[180px] text-right">Số Nguyên Nhập (Thùng/Két)</th>
+                  <th className="p-3 font-semibold min-w-[140px]">Số Lô (Batch)</th>
+                  <th className="p-3 font-semibold min-w-[210px]">NSX / HSD</th>
+                  <th className="p-3 font-semibold min-w-[170px]">Vị Trí Lưu Trữ</th>
                   <th className="p-3 font-semibold w-12 text-center">Xóa</th>
                 </tr>
               </thead>
@@ -278,7 +374,7 @@ export function InboundView({
         </div>
 
         {/* Right Panel: Returnable Packaging & Deposit Tracker */}
-        <div className="lg:col-span-4 flex flex-col gap-6">
+        <div className="lg:col-span-3 flex flex-col gap-6">
           {/* Returnables & Deposits */}
           <div className="bg-white border border-outline-variant rounded shadow-sm p-4">
             <h3 className="font-headline-sm text-headline-sm text-on-background font-bold flex items-center gap-2 mb-4">
@@ -336,15 +432,22 @@ export function InboundView({
                 <span className="material-symbols-outlined text-primary">attach_file</span>
                 Hồ Sơ &amp; Chứng Từ Kèm Theo
               </h3>
+              <input
+                type="file"
+                ref={fileInputRef}
+                multiple
+                accept="image/*,.pdf,.doc,.docx"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
               <button
-                onClick={() => {
-                  const newFile = `photo_receipt_${Math.floor(100+Math.random()*900)}.jpg`;
-                  setUploadedFiles([...uploadedFiles, newFile]);
-                }}
-                className="w-full flex items-center justify-center gap-2 border border-dashed border-outline hover:border-secondary hover:bg-surface-bright text-secondary py-8 rounded transition-colors mb-4 group"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex flex-col items-center justify-center gap-2 border-2 border-dashed border-outline hover:border-secondary hover:bg-surface-bright text-secondary py-6 rounded-lg transition-colors mb-4 group cursor-pointer"
               >
-                <span className="material-symbols-outlined group-hover:scale-110 transition-transform">add_a_photo</span>
-                <span className="font-body-md text-xs font-semibold">Tải Phiếu Giao Nhận Signed PDF / Photo</span>
+                <span className="material-symbols-outlined text-[28px] group-hover:scale-110 transition-transform">upload_file</span>
+                <span className="font-body-md text-xs font-bold">Tải Lên Phiếu Giao Nhận (PDF / HÌNH ẢNH)</span>
+                <span className="text-[10px] text-on-surface-variant font-medium">Nhấn vào đây để chọn tệp từ máy tính</span>
               </button>
 
               {/* Mock list of uploaded */}
@@ -394,6 +497,122 @@ export function InboundView({
           </div>
         </div>
       </div>
+
+      {/* Modal: Add New SKU (Manager Only) */}
+      {showAddSkuModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-xl border border-outline-variant shadow-2xl w-full max-w-lg overflow-hidden relative flex flex-col">
+            <div className="bg-surface-container-low p-4 border-b border-outline-variant flex justify-between items-center">
+              <h3 className="font-headline-sm text-headline-sm text-primary font-bold flex items-center gap-2">
+                <span className="material-symbols-outlined text-secondary">add_box</span>
+                Khai Báo Sản Phẩm / SKU Mới
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowAddSkuModal(false)}
+                className="text-on-surface-variant hover:text-primary transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {skuError && (
+              <div className="m-4 mb-0 bg-error-container text-on-error-container p-3 rounded text-xs font-semibold flex items-center gap-2 border border-error/20">
+                <span className="material-symbols-outlined text-[18px]">error</span>
+                {skuError}
+              </div>
+            )}
+
+            <form onSubmit={handleCreateSkuSubmit} className="p-6 space-y-4 text-xs font-semibold">
+              <div className="space-y-1">
+                <label className="block font-label-caps text-on-surface-variant">MÃ SKU SẢN PHẨM *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: SKU-STRONG-330-CAN"
+                  value={newSkuCode}
+                  onChange={(e) => setNewSkuCode(e.target.value.toUpperCase())}
+                  className="w-full p-2.5 border border-outline-variant rounded font-data-mono uppercase text-on-surface focus:border-secondary focus:ring-1 focus:ring-secondary outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block font-label-caps text-on-surface-variant">TÊN SẢN PHẨM *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ví dụ: Strongbow Apple Ciders 330ml Can"
+                  value={newSkuName}
+                  onChange={(e) => setNewSkuName(e.target.value)}
+                  className="w-full p-2.5 border border-outline-variant rounded text-on-surface focus:border-secondary focus:ring-1 focus:ring-secondary outline-none font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block font-label-caps text-on-surface-variant">ĐƠN VỊ TÍNH NGUYÊN</label>
+                  <select
+                    value={newSkuUnit}
+                    onChange={(e) => setNewSkuUnit(e.target.value)}
+                    className="w-full p-2.5 border border-outline-variant rounded text-on-surface bg-surface focus:border-secondary focus:ring-1 focus:ring-secondary outline-none font-semibold"
+                  >
+                    <option value="CASE">CASE (Thùng)</option>
+                    <option value="CRATE">CRATE (Két nhựa)</option>
+                    <option value="KEG">KEG (Bồn inox/Keg)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block font-label-caps text-on-surface-variant">TỈ LỆ QUY ĐỔI (LẺ/THÙNG)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    required
+                    value={newSkuRatio}
+                    onChange={(e) => setNewSkuRatio(e.target.value)}
+                    className="w-full p-2.5 border border-outline-variant rounded font-data-mono text-on-surface focus:border-secondary focus:ring-1 focus:ring-secondary outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block font-label-caps text-on-surface-variant">MÃ BARCODE NGUYÊN KIỆN (TÙY CHỌN)</label>
+                <input
+                  type="text"
+                  placeholder="Ví dụ: 8931234567890"
+                  value={newSkuBarcode}
+                  onChange={(e) => setNewSkuBarcode(e.target.value)}
+                  className="w-full p-2.5 border border-outline-variant rounded font-data-mono text-on-surface focus:border-secondary focus:ring-1 focus:ring-secondary outline-none"
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3 border-t border-outline-variant">
+                <button
+                  type="button"
+                  onClick={() => setShowAddSkuModal(false)}
+                  className="px-4 py-2 border border-outline-variant rounded text-on-surface-variant font-bold hover:bg-surface-container transition-colors"
+                >
+                  Hủy Bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingSku}
+                  className="px-5 py-2 bg-secondary text-on-secondary rounded font-bold hover:bg-secondary-container hover:text-on-secondary-container transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isCreatingSku ? (
+                    <span>Đang lưu...</span>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                      <span>Lưu SKU Mới</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

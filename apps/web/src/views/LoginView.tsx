@@ -131,7 +131,7 @@ export function LoginView({
         <div className="mt-2 bg-surface-container rounded-lg p-3 text-[12px] text-on-surface-variant flex flex-col gap-1 border border-outline-variant border-dashed">
           <span className="font-bold text-secondary flex items-center gap-1">
             <span className="material-symbols-outlined text-[14px]">info</span>
-            Tài khoản dùng thử (Mật khẩu: 123456)
+            Tài khoản dùng thử (Mật khẩu: WmsDemo2026! hoặc 123456)
           </span>
           <div className="flex flex-col gap-1.5 mt-1">
             <div><span className="font-semibold text-primary">• Quản lý Tổng:</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded text-[11px]">manager</code></div>

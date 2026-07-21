@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type { PoolClient } from 'pg';
 import { InventoryDatabaseService } from './inventory-database.service.js';
 
@@ -44,6 +44,67 @@ export class InventoryApplicationService {
       LEFT JOIN catalog.packaging_specification ps ON ps.sku_id = s.id AND ps.valid_until IS NULL
       ORDER BY s.name ASC
     `);
+  }
+
+  async createSku(actorId: string, input: { code: string; name: string; uomCode?: string; ratio?: number; barcode?: string }) {
+    if (!input || !input.code?.trim() || !input.name?.trim()) {
+      throw new BadRequestException('Mã SKU và Tên sản phẩm không được để trống.');
+    }
+    try {
+      const uomCode = input.uomCode?.trim().toUpperCase() || 'CASE';
+      const uomRows = await this.db.query<{ id: string }>('SELECT id FROM catalog.unit_of_measure WHERE code = $1', [uomCode]);
+      let uomId = uomRows[0]?.id;
+      if (!uomId) {
+        const allUom = await this.db.query<{ id: string }>('SELECT id FROM catalog.unit_of_measure LIMIT 1');
+        uomId = allUom[0]?.id;
+      }
+
+      const productCode = input.code.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '_');
+      const existingSku = await this.db.query<{ id: string }>('SELECT id FROM catalog.sku WHERE code = $1', [productCode]);
+      if (existingSku.length > 0) {
+        throw new ConflictException(`Mã SKU '${productCode}' đã tồn tại trong danh mục.`);
+      }
+
+      return await this.db.transaction(async (client) => {
+        const prodRes = await client.query<{ id: string }>(
+          `INSERT INTO catalog.product (code, name, status) VALUES ($1, $2, 'ACTIVE') RETURNING id`,
+          [productCode, input.name.trim()]
+        );
+        const productId = prodRes.rows[0]?.id;
+        if (!productId) throw new Error('Không thể tạo sản phẩm');
+
+        const skuRes = await client.query<{ id: string }>(
+          `INSERT INTO catalog.sku (product_id, code, name, base_uom_id, status) VALUES ($1, $2, $3, $4, 'ACTIVE') RETURNING id`,
+          [productId, productCode, input.name.trim(), uomId]
+        );
+        const skuId = skuRes.rows[0]?.id;
+        if (!skuId) throw new Error('Không thể tạo SKU');
+
+        const ratio = Number(input.ratio) || 24;
+        await client.query(
+          `INSERT INTO catalog.packaging_specification (sku_id, units_per_case, valid_from) VALUES ($1, $2, NOW())`,
+          [skuId, ratio]
+        );
+
+        if (input.barcode?.trim()) {
+          await client.query(
+            `INSERT INTO catalog.barcode (sku_id, value, valid_from) VALUES ($1, $2, NOW())`,
+            [skuId, input.barcode.trim()]
+          ).catch(() => {});
+        }
+
+        return {
+          id: skuId,
+          code: productCode,
+          name: input.name.trim(),
+          uom_code: uomCode,
+          ratio
+        };
+      });
+    } catch (err: any) {
+      if (err instanceof ConflictException || err instanceof BadRequestException) throw err;
+      throw new BadRequestException(err.message || 'Lỗi khi khởi tạo SKU mới');
+    }
   }
   async users(actorId: string) {
     return this.db.query(`

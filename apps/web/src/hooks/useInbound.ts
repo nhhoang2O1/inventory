@@ -67,9 +67,9 @@ export function useInbound(actorId: string, warehouseId: string, warehouseCode: 
         // Filter clean active SKUs only
         const skusList = rawSkus.filter((sku: any) => {
           if (!sku || typeof sku !== 'object') return false;
-          const code = sku.code || '';
-          const name = sku.name || '';
-          const isTest = code.includes('_') || name.includes('Phase') || name.includes('test') || code.startsWith('SP');
+          const code = (sku.code || '').toLowerCase();
+          const name = (sku.name || '').toLowerCase();
+          const isTest = name.includes('phase') || name.includes('outbound test') || code.startsWith('p5_') || code.startsWith('p7_') || code.startsWith('p8_') || code.startsWith('p9_');
           const isActive = sku.status ? sku.status === 'ACTIVE' : true;
           return isActive && !isTest;
         });
@@ -310,12 +310,37 @@ export function useInbound(actorId: string, warehouseId: string, warehouseCode: 
     }
   };
 
+  const fetchSkus = async () => {
+    try {
+      const res = await fetch('/api/v1/inventory/skus', {
+        headers: { 'x-actor-id': actorId }
+      });
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        const filtered = data.filter((sku: any) => {
+          if (!sku || typeof sku !== 'object') return false;
+          const code = (sku.code || '').toLowerCase();
+          const name = (sku.name || '').toLowerCase();
+          const isTest = name.includes('phase') || name.includes('outbound test') || code.startsWith('p5_') || code.startsWith('p7_') || code.startsWith('p8_') || code.startsWith('p9_');
+          const isActive = sku.status ? sku.status === 'ACTIVE' : true;
+          return isActive && !isTest;
+        });
+        setSkusList(filtered);
+        return filtered;
+      }
+    } catch (e) {
+      console.error('Error fetching skus:', e);
+    }
+    return [];
+  };
+
   return {
     purchaseOrders,
     selectedPoId,
     setSelectedPoId,
     locationsList,
     skusList,
+    fetchSkus,
     inboundItems,
     setInboundItems,
     returnedCrateQty,

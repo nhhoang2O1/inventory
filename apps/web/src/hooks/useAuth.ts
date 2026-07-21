@@ -33,15 +33,47 @@ export function useAuth() {
       if (savedRole) setUserRole(savedRole as UserRole);
       if (savedWarehouses) {
         try {
-          setWarehouses(JSON.parse(savedWarehouses));
-        } catch (e) {}
+          const parsed = JSON.parse(savedWarehouses);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setWarehouses(parsed);
+          } else {
+            fetchWarehousesFallback();
+          }
+        } catch (e) {
+          fetchWarehousesFallback();
+        }
+      } else {
+        fetchWarehousesFallback();
       }
+
       if (savedWarehouseId) setSelectedWarehouseId(savedWarehouseId);
       if (savedWarehouseCode) setSelectedWarehouseCode(savedWarehouseCode);
       if (savedWarehouseName) setSelectedWarehouse(savedWarehouseName);
       setView('dashboard');
     }
   }, []);
+
+  const fetchWarehousesFallback = () => {
+    fetch('/api/v1/inventory/warehouses')
+      .then(res => res.json())
+      .then(whs => {
+        if (Array.isArray(whs) && whs.length > 0) {
+          const mapped = whs.map((w: any) => ({ id: String(w.id), name: String(w.name), code: String(w.code) }));
+          setWarehouses(mapped);
+          const first = mapped[0];
+          if (first) {
+            setSelectedWarehouse(first.name);
+            setSelectedWarehouseId(first.id);
+            setSelectedWarehouseCode(first.code);
+            localStorage.setItem('warehouses', JSON.stringify(mapped));
+            localStorage.setItem('selectedWarehouse', first.name);
+            localStorage.setItem('selectedWarehouseId', first.id);
+            localStorage.setItem('selectedWarehouseCode', first.code);
+          }
+        }
+      })
+      .catch(err => console.error('Failed to fetch warehouses fallback:', err));
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

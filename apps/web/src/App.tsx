@@ -94,6 +94,8 @@ export function App() {
           {auth.isLoggedIn && auth.view === 'inbound' && (
             <InboundView
               operatorId={auth.username}
+              userRole={auth.userRole || 'MANAGER'}
+              warehouseCode={auth.selectedWarehouse}
               inboundItems={inbound.inboundItems}
               setInboundItems={inbound.setInboundItems}
               handleInboundQtyChange={inbound.handleInboundQtyChange}
@@ -110,6 +112,7 @@ export function App() {
               setSelectedPoId={inbound.setSelectedPoId}
               locationsList={inbound.locationsList}
               skusList={inbound.skusList}
+              fetchSkus={inbound.fetchSkus}
               isLoading={inbound.isLoading}
               error={inbound.error}
             />
