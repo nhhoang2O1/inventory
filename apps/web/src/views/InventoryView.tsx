@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useInventory, InventoryPosition } from '../hooks/useInventory';
+import { WarehouseLayoutEditor, LayoutNode, getDefaultLayoutNodes, computeMergedOccupancyMap } from '../components/WarehouseLayoutEditor';
 
 interface InventoryViewProps {
   brandFilter: string;
@@ -22,6 +23,9 @@ export function InventoryView({
 }: InventoryViewProps) {
   const [activeSubTab, setActiveSubTab] = useState<InventorySubTab>('atp');
   const [selectedLocationCode, setSelectedLocationCode] = useState<string | null>(null);
+  const [layoutNodes, setLayoutNodes] = useState<LayoutNode[]>([]);
+  const [occupancyMap, setOccupancyMap] = useState<Record<string, any>>({});
+  const [searchItemQuery, setSearchItemQuery] = useState<string>('');
 
   const {
     positions,
@@ -48,6 +52,35 @@ export function InventoryView({
     handleCreateStocktake
   } = useInventory(actorId, warehouseId);
 
+  useEffect(() => {
+    if (!warehouseId) return;
+    fetch(`/api/v1/warehouse-layout?warehouseId=${warehouseId}`, {
+      headers: { 'x-actor-id': actorId }
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.layout && data.layout.nodes?.length > 0) {
+          setLayoutNodes(data.layout.nodes);
+        } else {
+          setLayoutNodes(getDefaultLayoutNodes(allLocations, positions));
+        }
+        setOccupancyMap(data.occupancyMap || {});
+      })
+      .catch((err) => console.error('Failed to load layout in InventoryView', err));
+  }, [actorId, warehouseId, activeSubTab, allLocations, positions]);
+
+  const matchingPositions = searchItemQuery.trim()
+    ? positions.filter((p) =>
+        p.sku_name?.toLowerCase().includes(searchItemQuery.toLowerCase()) ||
+        p.sku_code?.toLowerCase().includes(searchItemQuery.toLowerCase()) ||
+        p.batch_code?.toLowerCase().includes(searchItemQuery.toLowerCase())
+      )
+    : [];
+  const highlightRackCodes = Array.from(new Set(matchingPositions.map((p) => p.location_code || p.location_id)));
+
+  // Dynamically compute occupancy map directly from loaded positions to guarantee 100% match with Location Inspector!
+  const mergedOccupancyMap = computeMergedOccupancyMap(occupancyMap, positions);
+
   const handleRefresh = () => {
     fetchAllData();
     onRefresh();
@@ -71,9 +104,10 @@ export function InventoryView({
   // Selected Location Positions for Warehouse Map Inspector
   const selectedLocationPositions = selectedLocationCode
     ? positions.filter(p =>
-        p.location_code === selectedLocationCode ||
+        p.location_code?.toLowerCase() === selectedLocationCode.toLowerCase() ||
         p.location_id === selectedLocationCode ||
-        (selectedLocationCode.toUpperCase() === 'A1' && (p.location_code.includes('A1') || p.location_code.includes('Z1')))
+        (p.location_code && p.location_code.toLowerCase().includes(selectedLocationCode.toLowerCase())) ||
+        (p.location_code && selectedLocationCode.toLowerCase().includes(p.location_code.toLowerCase()))
       )
     : [];
 
@@ -340,109 +374,43 @@ export function InventoryView({
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Visual Floor Map Canvas */}
-            <div className="lg:col-span-2 bg-white border border-outline-variant rounded-xl p-5 shadow-sm space-y-6">
-
-              {/* Zone A: Ambient Rack Storage */}
-              <div className="border border-outline-variant/60 rounded-lg p-4 bg-slate-50/50 space-y-3">
-                <div className="flex justify-between items-center border-b border-outline-variant/40 pb-2">
-                  <div className="flex items-center gap-2 font-bold text-xs text-primary">
-                    <span className="material-symbols-outlined text-[18px] text-primary">warehouse</span>
-                    ZONE A - KHU LƯU KHO HÀNG NGUYÊN ĐAI NGUYÊN KIỆN (Ambient Bulk Racks)
-                  </div>
-                  <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded">High Capacity Racks</span>
-                </div>
-
-                <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
-                  {allLocations.length > 0 ? (
-                    allLocations.map((loc) => {
-                      const posInLoc = positions.filter(p => p.location_code === loc.code || p.location_id === loc.id);
-                      const hasStock = posInLoc.length > 0;
-                      const hasQuarantine = posInLoc.some(p => p.stock_status === 'QUARANTINED');
-                      const hasBlocked = posInLoc.some(p => p.stock_status === 'BLOCKED' || p.stock_status === 'DAMAGED');
-                      const totalLocQty = posInLoc.reduce((s, p) => s + Number(p.quantity_on_hand || 0), 0);
-                      const isSelected = selectedLocationCode === loc.code || selectedLocationCode === loc.id;
-
-                      let cellBg = 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200';
-                      if (hasBlocked) cellBg = 'bg-rose-100 text-rose-800 border-rose-400 hover:bg-rose-200';
-                      else if (hasQuarantine) cellBg = 'bg-amber-100 text-amber-800 border-amber-400 hover:bg-amber-200';
-                      else if (hasStock) cellBg = 'bg-emerald-100 text-emerald-800 border-emerald-400 hover:bg-emerald-200';
-
-                      return (
-                        <button
-                          key={loc.id}
-                          onClick={() => setSelectedLocationCode(loc.code)}
-                          className={`p-3 rounded border text-center transition-all flex flex-col items-center justify-between min-h-[64px] cursor-pointer ${cellBg} ${
-                            isSelected ? 'ring-2 ring-primary ring-offset-2 font-bold scale-105 shadow' : ''
-                          }`}
-                        >
-                          <span className="font-data-mono font-bold text-xs">{loc.code}</span>
-                          <span className="text-[10px] font-semibold mt-1">
-                            {hasStock ? `${totalLocQty} Thùng` : 'Trống'}
-                          </span>
-                        </button>
-                      );
-                    })
-                  ) : (
-                    // Default fallback visual rack representation if locations list is dynamically loading
-                    ['A1-R1-B01', 'A1-R1-B02', 'A1-R1-B03', 'A1-R1-B04', 'A1-R2-B01', 'A1-R2-B02', 'A2-R1-B01', 'A2-R1-B02'].map((code) => {
-                      const posInLoc = positions.filter(p => p.location_code === code);
-                      const hasStock = posInLoc.length > 0;
-                      const totalLocQty = posInLoc.reduce((s, p) => s + Number(p.quantity_on_hand || 0), 0);
-                      const isSelected = selectedLocationCode === code;
-
-                      return (
-                        <button
-                          key={code}
-                          onClick={() => setSelectedLocationCode(code)}
-                          className={`p-3 rounded border text-center transition-all flex flex-col items-center justify-between min-h-[64px] ${
-                            hasStock ? 'bg-emerald-100 text-emerald-800 border-emerald-400' : 'bg-slate-100 text-slate-600 border-slate-300'
-                          } ${isSelected ? 'ring-2 ring-primary ring-offset-2 font-bold' : ''}`}
-                        >
-                          <span className="font-data-mono font-bold text-xs">{code}</span>
-                          <span className="text-[10px] font-semibold mt-1">
-                            {hasStock ? `${totalLocQty} Thùng` : 'Trống'}
-                          </span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
+            <div className="lg:col-span-2 space-y-4">
+              {/* Search Bar for SKU / Batch / Location Lookup */}
+              <div className="bg-white border border-outline-variant rounded-xl p-3 shadow-sm flex items-center gap-3">
+                <span className="material-symbols-outlined text-secondary text-[20px]">search</span>
+                <input
+                  type="text"
+                  placeholder="🔍 Nhập SKU hoặc Mã Lô (VD: Heineken, TG-001, BATCH-102) để soi vị trí Kệ trên sơ đồ 2D..."
+                  value={searchItemQuery}
+                  onChange={(e) => setSearchItemQuery(e.target.value)}
+                  className="w-full bg-transparent border-none text-xs text-on-surface focus:outline-none font-semibold"
+                />
+                {searchItemQuery && (
+                  <button
+                    onClick={() => setSearchItemQuery('')}
+                    className="text-xs text-on-surface-variant hover:text-primary font-bold px-2 py-1 bg-surface rounded"
+                  >
+                    Xóa
+                  </button>
+                )}
               </div>
 
-              {/* Zone C: Quarantine & Quality Area */}
-              <div className="border border-amber-300/80 rounded-lg p-4 bg-amber-50/30 space-y-3">
-                <div className="flex justify-between items-center border-b border-amber-200 pb-2">
-                  <div className="flex items-center gap-2 font-bold text-xs text-amber-900">
-                    <span className="material-symbols-outlined text-[18px] text-amber-600">verified_user</span>
-                    ZONE C - KHU CÁCH LY KIỂM ĐỊNH CHẤT LƯỢNG (QC Quarantine Zone)
-                  </div>
-                  <span className="text-[10px] bg-amber-200 text-amber-900 font-bold px-2 py-0.5 rounded">QC Hold Only</span>
-                </div>
-
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                  {['QC-BAY-01', 'QC-BAY-02', 'REJECT-BIN-01', 'REJECT-BIN-02'].map((locCode) => {
-                    const posInLoc = positions.filter(p => p.location_code === locCode);
-                    const totalLocQty = posInLoc.reduce((s, p) => s + Number(p.quantity_on_hand || 0), 0);
-                    const isSelected = selectedLocationCode === locCode;
-
-                    return (
-                      <button
-                        key={locCode}
-                        onClick={() => setSelectedLocationCode(locCode)}
-                        className={`p-3 rounded border text-center transition-all flex flex-col items-center justify-between min-h-[60px] bg-amber-100 text-amber-900 border-amber-300 hover:bg-amber-200 ${
-                          isSelected ? 'ring-2 ring-amber-600 ring-offset-2 font-bold' : ''
-                        }`}
-                      >
-                        <span className="font-data-mono font-bold text-xs">{locCode}</span>
-                        <span className="text-[10px] font-semibold mt-1">
-                          {totalLocQty > 0 ? `${totalLocQty} Thùng (Cách ly)` : 'Sẵn sàng'}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
+              {/* Interactive 2D Map Canvas */}
+              <WarehouseLayoutEditor
+                nodes={layoutNodes.length > 0 ? layoutNodes : [
+                  { id: 'rack-01', type: 'RACK', code: 'RACK-A01', x: 60, y: 100, width: 140, height: 60, rotation: 0 },
+                  { id: 'rack-02', type: 'RACK', code: 'RACK-A02', x: 240, y: 100, width: 140, height: 60, rotation: 0 },
+                  { id: 'rack-03', type: 'RACK', code: 'RACK-B01', x: 60, y: 220, width: 140, height: 60, rotation: 0 },
+                  { id: 'rack-04', type: 'RACK', code: 'RACK-B02', x: 240, y: 220, width: 140, height: 60, rotation: 0 },
+                  { id: 'door-in', type: 'DOOR', code: 'DOOR-IN', name: 'Cửa Nhập Kho', x: 60, y: 20, width: 160, height: 40, rotation: 0 },
+                  { id: 'door-out', type: 'DOOR', code: 'DOOR-OUT', name: 'Cửa Xuất Kho', x: 400, y: 20, width: 160, height: 40, rotation: 0 },
+                  { id: 'aisle-1', type: 'AISLE', code: 'AISLE-01', name: 'Lối đi Xe Nâng 1', x: 60, y: 170, width: 320, height: 40, rotation: 0 }
+                ]}
+                isEditMode={false}
+                occupancyMap={mergedOccupancyMap}
+                highlightRackCodes={highlightRackCodes}
+                onSelectNode={(node) => setSelectedLocationCode(node ? node.code : null)}
+              />
             </div>
 
             {/* Location Inspector Side Panel */}

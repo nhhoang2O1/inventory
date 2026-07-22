@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Headers, Param, Post, Query, Req } from '@nestjs/common';
 import { InventoryApplicationService, type PostingLineInput } from './inventory-application.service.js';
+import { WarehouseLayoutService, type SaveLayoutInput } from './warehouse-layout.service.js';
 
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function requiredUuid(value:string|undefined,name:string){if(!value||!uuid.test(value))throw new BadRequestException(`${name} must be UUID`);return value;}
@@ -7,7 +8,7 @@ function quantity(value:unknown){if(!Number.isSafeInteger(value)||Number(value)<
 
 @Controller('inventory')
 export class InventoryController {
-  constructor(private readonly service:InventoryApplicationService){}
+  constructor(private readonly service:InventoryApplicationService, private readonly layoutService: WarehouseLayoutService){}
   @Get('skus') skus(@Headers('x-actor-id') actor:string|undefined){return this.service.skus(requiredUuid(actor,'actorId'));}
   @Post('skus') createSku(@Headers('x-actor-id') actor:string|undefined, @Body() body: { code: string; name: string; uomCode?: string; ratio?: number; barcode?: string }) { return this.service.createSku(requiredUuid(actor,'actorId'), body); }
   @Get('users') users(@Headers('x-actor-id') actor:string|undefined){return this.service.users(requiredUuid(actor,'actorId'));}
@@ -26,4 +27,60 @@ export class InventoryController {
   @Post('reservations/:id/release') release(@Headers('x-actor-id') actor:string|undefined,@Param('id') id:string,@Body() body:Record<string,unknown>){return this.service.release(requiredUuid(actor,'actorId'),requiredUuid(id,'reservationId'),quantity(body.quantity));}
   @Post('postings') post(@Headers('x-actor-id') actor:string|undefined,@Headers('idempotency-key') key:string|undefined,@Req() req:{correlationId?:string},@Body() body:{documentType?:string;documentId?:string;reason?:string;lines?:PostingLineInput[]}){if(!key||!body.lines?.length)throw new BadRequestException('Idempotency-Key and lines are required');for(const line of body.lines)quantity(line.quantity);return this.service.post(requiredUuid(actor,'actorId'),String(body.documentType??''),requiredUuid(body.documentId,'documentId'),key,requiredUuid(req.correlationId,'correlationId'),body.reason,body.lines);}
   @Post('postings/:movementId/reverse') reverse(@Headers('x-actor-id') actor:string|undefined,@Headers('idempotency-key') key:string|undefined,@Param('movementId') movementId:string,@Req() req:{correlationId?:string},@Body() body:{documentId?:string;reason?:string}){if(!key||!body.reason?.trim())throw new BadRequestException('Idempotency-Key and reason are required');return this.service.reverse(requiredUuid(actor,'actorId'),requiredUuid(movementId,'movementId'),requiredUuid(body.documentId,'documentId'),key,requiredUuid(req.correlationId,'correlationId'),body.reason);}
+
+  @Get('warehouse-layout')
+  getLayout(@Headers('x-actor-id') actor: string | undefined, @Query('warehouseId') warehouseId: string | undefined) {
+    requiredUuid(actor, 'actorId');
+    return this.layoutService.getLayout(requiredUuid(warehouseId, 'warehouseId'));
+  }
+
+  @Post('warehouse-layout/save')
+  saveLayout(@Headers('x-actor-id') actor: string | undefined, @Query('warehouseId') warehouseId: string | undefined, @Body() body: SaveLayoutInput) {
+    const actorId = requiredUuid(actor, 'actorId');
+    const whId = requiredUuid(warehouseId, 'warehouseId');
+    return this.layoutService.saveLayout(actorId, whId, body);
+  }
+
+  @Post('warehouse-layout/publish/:id')
+  publishLayout(@Headers('x-actor-id') actor: string | undefined, @Query('warehouseId') warehouseId: string | undefined, @Param('id') layoutId: string) {
+    const actorId = requiredUuid(actor, 'actorId');
+    const whId = requiredUuid(warehouseId, 'warehouseId');
+    return this.layoutService.publishLayout(actorId, whId, requiredUuid(layoutId, 'layoutId'));
+  }
+}
+
+@Controller('warehouse-layout')
+export class WarehouseLayoutController {
+  constructor(private readonly service: WarehouseLayoutService) {}
+
+  @Get()
+  getLayout(
+    @Headers('x-actor-id') actor: string | undefined,
+    @Query('warehouseId') warehouseId: string | undefined
+  ) {
+    requiredUuid(actor, 'actorId');
+    return this.service.getLayout(requiredUuid(warehouseId, 'warehouseId'));
+  }
+
+  @Post('save')
+  saveLayout(
+    @Headers('x-actor-id') actor: string | undefined,
+    @Query('warehouseId') warehouseId: string | undefined,
+    @Body() body: SaveLayoutInput
+  ) {
+    const actorId = requiredUuid(actor, 'actorId');
+    const whId = requiredUuid(warehouseId, 'warehouseId');
+    return this.service.saveLayout(actorId, whId, body);
+  }
+
+  @Post('publish/:id')
+  publishLayout(
+    @Headers('x-actor-id') actor: string | undefined,
+    @Query('warehouseId') warehouseId: string | undefined,
+    @Param('id') layoutId: string
+  ) {
+    const actorId = requiredUuid(actor, 'actorId');
+    const whId = requiredUuid(warehouseId, 'warehouseId');
+    return this.service.publishLayout(actorId, whId, requiredUuid(layoutId, 'layoutId'));
+  }
 }
