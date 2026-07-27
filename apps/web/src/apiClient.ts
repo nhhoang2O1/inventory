@@ -5,7 +5,13 @@ export interface ApiRequestOptions extends RequestInit {
 export async function apiClient<T = any>(endpoint: string, options: ApiRequestOptions = {}): Promise<T> {
   const { params, headers: customHeaders, ...customOptions } = options;
 
-  let url = endpoint.startsWith('http') ? endpoint : `/api/v1${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
+  let url = endpoint.startsWith('http')
+    ? endpoint
+    : endpoint.startsWith('/api/v1')
+      ? endpoint
+      : endpoint.startsWith('/api/')
+        ? `/api/v1${endpoint.substring(4)}`
+        : `/api/v1${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
   if (params) {
     const searchParams = new URLSearchParams();
@@ -61,4 +67,20 @@ export async function apiClient<T = any>(endpoint: string, options: ApiRequestOp
   } catch {
     return text as unknown as T;
   }
+}
+
+export async function apiGet<T = any>(endpoint: string, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
+  const options: ApiRequestOptions = { method: 'GET' };
+  if (params) {
+    options.params = params;
+  }
+  return apiClient<T>(endpoint, options);
+}
+
+export async function apiPost<T = any>(endpoint: string, body?: any): Promise<T> {
+  const options: ApiRequestOptions = { method: 'POST' };
+  if (body !== undefined) {
+    options.body = JSON.stringify(body);
+  }
+  return apiClient<T>(endpoint, options);
 }

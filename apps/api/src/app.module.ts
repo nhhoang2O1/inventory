@@ -14,6 +14,7 @@ import { RecallModule } from './modules/recall/public/recall.module.js';
 import { PlanningModule } from './modules/planning/public/planning.module.js';
 import { ReportingModule } from './modules/reporting/public/reporting.module.js';
 import { IntegrationModule } from './modules/integration/public/integration.module.js';
+import { GateModule } from './modules/gate/public/gate.module.js';
 
 @Module({
   imports: [
@@ -31,7 +32,8 @@ import { IntegrationModule } from './modules/integration/public/integration.modu
     RecallModule,
     PlanningModule,
     ReportingModule,
-    IntegrationModule
+    IntegrationModule,
+    GateModule
   ]
 })
 export class AppModule {}

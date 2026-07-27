@@ -10,6 +10,7 @@ import { FinancialView } from './views/FinancialView';
 import { ApprovalView } from './views/ApprovalView';
 import { QualityView } from './views/QualityView';
 import { WarehouseLayoutView } from './views/WarehouseLayoutView';
+import { GateWeighbridgeView } from './views/GateWeighbridgeView';
 
 // Import custom hooks (The ViewModel layer)
 import { useAuth } from './hooks/useAuth';
@@ -179,6 +180,13 @@ export function App() {
 
           {auth.isLoggedIn && auth.view === 'layout' && (
             <WarehouseLayoutView
+              actorId={auth.userId}
+              warehouseId={auth.selectedWarehouseId}
+            />
+          )}
+
+          {auth.isLoggedIn && auth.view === 'gate' && (
+            <GateWeighbridgeView
               actorId={auth.userId}
               warehouseId={auth.selectedWarehouseId}
             />
