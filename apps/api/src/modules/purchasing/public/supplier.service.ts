@@ -30,19 +30,70 @@ export class SupplierService {
     });}catch(error){if(error instanceof Error&&error.message.includes('unique constraint'))throw new ConflictException('Supplier code already exists');throw error;}
   }
 
-  async findAll(actorId:string){
-    if(!await this.db.hasPermission(actorId,'SUPPLIER.VIEW'))throw new ForbiddenException('SUPPLIER.VIEW is required');
-    return this.db.query(`SELECT id,code,name,phone,contact_email AS "contactEmail",payment_terms AS "paymentTerms",
-      standard_lead_time_days AS "standardLeadTimeDays",business_calendar_id AS "businessCalendarId",status,version,
-      created_at AS "createdAt" FROM purchasing.supplier ORDER BY code`);
+  async findAllPublic() {
+    return this.db.query(`
+      SELECT s.id, s.code, s.name, s.phone,
+             s.standard_lead_time_days AS "standardLeadTimeDays",
+             s.status, s.created_at AS "createdAt",
+             (
+               SELECT json_agg(json_build_object(
+                 'id', sp.id,
+                 'productId', p.id,
+                 'productCode', p.code,
+                 'productName', p.name,
+                 'leadTimeDays', sp.lead_time_days,
+                 'unitPrice', sp.unit_price
+               ))
+               FROM purchasing.supplier_product sp
+               JOIN catalog.product p ON p.id = sp.product_id
+               WHERE sp.supplier_id = s.id AND p.status = 'ACTIVE'
+             ) AS products
+      FROM purchasing.supplier s
+      WHERE s.status = 'ACTIVE'
+      ORDER BY s.code
+    `);
   }
 
-  async findOne(actorId:string,id:string){
-    if(!await this.db.hasPermission(actorId,'SUPPLIER.VIEW'))throw new ForbiddenException('SUPPLIER.VIEW is required');
-    const rows=await this.db.query(`SELECT id,code,name,phone,contact_email AS "contactEmail",payment_terms AS "paymentTerms",
-      standard_lead_time_days AS "standardLeadTimeDays",business_calendar_id AS "businessCalendarId",status,version,
-      created_at AS "createdAt" FROM purchasing.supplier WHERE id=$1`,[id]);
-    if(!rows[0])throw new NotFoundException('Supplier not found');return rows[0];
+  async createPublic(data: { code: string; name: string; phone?: string; standardLeadTimeDays: number; productIds?: string[] }) {
+    const code = data.code.trim().toUpperCase();
+    const name = data.name.trim();
+    const phone = data.phone?.trim() || null;
+    const leadTime = Number(data.standardLeadTimeDays) || 2;
+
+    const inserted = await this.db.query<{ id: string }>(`
+      INSERT INTO purchasing.supplier (code, name, phone, standard_lead_time_days)
+      VALUES ($1, $2, $3, $4)
+      RETURNING id
+    `, [code, name, phone, leadTime]);
+
+    const id = inserted[0]?.id;
+
+    if (id && Array.isArray(data.productIds) && data.productIds.length > 0) {
+      for (const prodId of data.productIds) {
+        await this.db.query(`
+          INSERT INTO purchasing.supplier_product (supplier_id, product_id, lead_time_days, unit_price)
+          VALUES ($1, $2, $3, 240000.00)
+          ON CONFLICT (supplier_id, product_id) DO NOTHING
+        `, [id, prodId, leadTime]);
+      }
+    }
+
+    return { id, code, name, phone, standardLeadTimeDays: leadTime };
+  }
+
+  async deletePublic(id: string) {
+    return await this.db.query(`DELETE FROM purchasing.supplier WHERE id = $1`, [id]);
+  }
+
+  async getSupplierProducts(supplierId: string) {
+    return this.db.query(`
+      SELECT sp.id, p.id AS "productId", p.code AS "productCode", p.name AS "productName",
+             sp.lead_time_days AS "leadTimeDays", sp.unit_price AS "unitPrice"
+      FROM purchasing.supplier_product sp
+      JOIN catalog.product p ON p.id = sp.product_id
+      WHERE sp.supplier_id = $1
+      ORDER BY p.name
+    `, [supplierId]);
   }
 
   private audit(client:import('pg').PoolClient,actorId:string,action:string,id:string,correlationId:string,after:unknown){

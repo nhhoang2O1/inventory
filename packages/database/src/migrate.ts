@@ -7,6 +7,11 @@ import pg from 'pg';
 const { Client } = pg;
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'migrations');
 const command = process.argv[2] ?? 'up';
+if (!process.env.DATABASE_URL) {
+  const { config } = await import('dotenv');
+  config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../../.env') });
+  config({ path: join(dirname(fileURLToPath(import.meta.url)), '../../.env') });
+}
 const connectionString = process.env.DATABASE_URL;
 
 if (!connectionString) throw new Error('DATABASE_URL is required. Copy .env.example to .env or export the variable.');

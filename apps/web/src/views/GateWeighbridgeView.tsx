@@ -8,10 +8,14 @@ interface TruckEntry {
   driver_name: string;
   driver_id_card?: string;
   carrier_name?: string;
+  po_do_code?: string;
+  sku_name?: string;
+  expected_qty_cases?: number;
   entry_type: 'QR_SCAN' | 'MANUAL';
-  purpose: 'INBOUND' | 'OUTBOUND' | 'INTERNAL_TRANSFER';
+  purpose: 'INBOUND' | 'OUTBOUND';
   status: 'CHECKED_IN' | 'WEIGHED_IN' | 'LOADING' | 'WEIGHED_OUT' | 'COMPLETED' | 'REJECTED';
   dock_location_id?: string;
+  dock_code?: string;
   weight_in?: number;
   weight_out?: number;
   net_weight?: number;
@@ -40,12 +44,19 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
   const [driverName, setDriverName] = useState('');
   const [driverIdCard, setDriverIdCard] = useState('');
   const [carrierName, setCarrierName] = useState('');
+  const [poDoCode, setPoDoCode] = useState('PO-20260728-08');
+  const [skuName, setSkuName] = useState('Bia 333 Lon 330ml');
   const [purpose, setPurpose] = useState<'INBOUND' | 'OUTBOUND' | 'INTERNAL_TRANSFER'>('INBOUND');
   const [weightIn, setWeightIn] = useState<number>(15450);
 
   // Dock assignment state
   const [selectedEntryForDock, setSelectedEntryForDock] = useState<string>('');
   const [selectedDockCode, setSelectedDockCode] = useState<string>('DOCK-01');
+  const [confirmDockModal, setConfirmDockModal] = useState<{
+    isOpen: boolean;
+    truckEntry: TruckEntry | null;
+    dock: DockLocation | null;
+  }>({ isOpen: false, truckEntry: null, dock: null });
 
   // Scale Out state
   const [selectedEntryForScaleOut, setSelectedEntryForScaleOut] = useState<string>('');
@@ -54,12 +65,41 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
   const [stdWeightPerCase, setStdWeightPerCase] = useState<number>(11.2); // 11.2 kg/thùng
   const [scaleOutNotes, setScaleOutNotes] = useState('');
 
-  const sampleDocks: DockLocation[] = [
-    { id: 'dock-1', code: 'DOCK-01', name: 'Cửa Nhập hàng 01 (Khu A)', status: 'AVAILABLE' },
-    { id: 'dock-2', code: 'DOCK-02', name: 'Cửa Nhập hàng 02 (Khu A)', status: 'BUSY' },
-    { id: 'dock-3', code: 'DOCK-03', name: 'Cửa Xuất hàng 03 (Khu B)', status: 'AVAILABLE' },
-    { id: 'dock-4', code: 'DOCK-04', name: 'Cửa Xuất hàng 04 (Khu B)', status: 'BUSY' },
-  ];
+interface ApprovedOrder {
+  id: string;
+  order_code: string;
+  purpose: 'INBOUND' | 'OUTBOUND';
+  partner_name?: string;
+  sku_name?: string;
+  total_skus?: number;
+  total_qty?: number;
+  expected_weight_kg?: number;
+  expected_qty?: number;
+  type: 'PO' | 'DO';
+}
+
+  const [docks, setDocks] = useState<DockLocation[]>([]);
+  const [approvedOrders, setApprovedOrders] = useState<ApprovedOrder[]>([]);
+
+  const fetchDocks = async () => {
+    try {
+      const data = await apiGet<DockLocation[]>('/gate/docks');
+      setDocks(data || []);
+    } catch (err: any) {
+      console.error('Lỗi lấy danh sách Cửa Dock:', err);
+      setDocks([]);
+    }
+  };
+
+  const fetchApprovedOrders = async () => {
+    try {
+      const data = await apiGet<ApprovedOrder[]>('/gate/approved-orders');
+      setApprovedOrders(data || []);
+    } catch (err: any) {
+      console.error('Lỗi lấy danh sách đơn hàng PO/DO từ API:', err);
+      setApprovedOrders([]);
+    }
+  };
 
   const fetchEntries = async () => {
     setIsLoading(true);
@@ -67,37 +107,8 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
       const data = await apiGet<TruckEntry[]>('/gate/entries');
       setEntries(data || []);
     } catch (err: any) {
-      console.warn('API Error, using fallback mock data:', err);
-      // Fallback mock entries if database is not seeded
-      setEntries([
-        {
-          id: '1',
-          entry_code: 'GATE-20260727-8821',
-          license_plate: '29H-847.21',
-          driver_name: 'Nguyễn Văn Hùng',
-          driver_id_card: '001092004812',
-          carrier_name: 'Vận tải Hùng Phát',
-          entry_type: 'QR_SCAN',
-          purpose: 'INBOUND',
-          status: 'WEIGHED_IN',
-          weight_in: 16200,
-          created_at: new Date().toISOString()
-        },
-        {
-          id: '2',
-          entry_code: 'GATE-20260727-4109',
-          license_plate: '51D-921.45',
-          driver_name: 'Trần Đình Trọng',
-          driver_id_card: '079093012984',
-          carrier_name: 'Nội bộ Sabeco',
-          entry_type: 'MANUAL',
-          purpose: 'INBOUND',
-          status: 'LOADING',
-          dock_location_id: 'DOCK-01',
-          weight_in: 15450,
-          created_at: new Date(Date.now() - 3600000).toISOString()
-        }
-      ]);
+      console.error('Lỗi lấy danh sách chuyến xe:', err);
+      setEntries([]);
     } finally {
       setIsLoading(false);
     }
@@ -105,7 +116,18 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
 
   useEffect(() => {
     fetchEntries();
+    fetchDocks();
+    fetchApprovedOrders();
   }, []);
+
+  useEffect(() => {
+    if (entries.length > 0) {
+      const pending = entries.find(e => e.status === 'WEIGHED_IN' || e.status === 'LOADING');
+      if (pending && (!selectedEntryForDock || !entries.some(e => e.id === selectedEntryForDock))) {
+        setSelectedEntryForDock(pending.id);
+      }
+    }
+  }, [entries, selectedEntryForDock]);
 
   const handleSimulateQRScan = () => {
     setEntryType('QR_SCAN');
@@ -365,6 +387,56 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
             </div>
 
             <form onSubmit={handleCheckInSubmit} className="space-y-4">
+              {/* PO / DO Order Selection Block */}
+              <div className="bg-indigo-50/80 p-4 rounded-xl border border-indigo-200 space-y-2.5">
+                <div className="flex justify-between items-center text-xs font-bold text-indigo-900">
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[18px] text-indigo-600">receipt_long</span>
+                    Chọn Đơn Hàng PO/DO Phê Duyệt (Tự Động Điền Mặt Hàng &amp; Quy Chuẩn)
+                  </span>
+                  <span className="bg-indigo-200 text-indigo-800 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase">
+                    WMS Auto-Fill
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="md:col-span-2">
+                    <select
+                      value={poDoCode}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPoDoCode(val);
+                        const match = approvedOrders.find(o => o.order_code === val);
+                        if (match) {
+                          setPurpose(match.purpose);
+                          if (match.partner_name) setCarrierName(match.partner_name);
+                          if (match.expected_weight_kg) setSkuName(`${match.expected_weight_kg.toLocaleString('vi-VN')} kg (Tải trọng ${match.total_qty || 500} thùng)`);
+                        }
+                      }}
+                      className="w-full px-3.5 py-2 rounded-xl border border-slate-300 font-data-mono font-bold text-slate-800 text-xs focus:ring-2 focus:ring-indigo-500"
+                    >
+                      {approvedOrders.map(o => (
+                        <option key={o.order_code} value={o.order_code}>
+                          [{o.order_code}] - {o.purpose === 'INBOUND' ? 'Nhập' : 'Xuất'} {o.total_qty || o.expected_qty || 500} thùng/két ({o.total_skus || 1} SKU) - {o.partner_name || ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <input
+                      type="text"
+                      readOnly
+                      placeholder="Cân nặng dự kiến"
+                      value={
+                        approvedOrders.find(o => o.order_code === poDoCode)?.expected_weight_kg
+                          ? `${(approvedOrders.find(o => o.order_code === poDoCode)?.expected_weight_kg || 0).toLocaleString('vi-VN')} kg (Dự kiến ${approvedOrders.find(o => o.order_code === poDoCode)?.total_qty || 0} thùng)`
+                          : skuName || 'Cân nặng dự kiến: 9,600 kg'
+                      }
+                      className="w-full px-3.5 py-2 rounded-xl border border-indigo-200 text-xs font-bold text-indigo-900 bg-indigo-100/50 shadow-inner"
+                      title="Tổng cân nặng dự kiến của toàn bộ đơn hàng PO/DO"
+                    />
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Biển Số Xe (*)</label>
@@ -423,7 +495,6 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
                   >
                     <option value="INBOUND">Nhập Hàng Vào Kho (Inbound)</option>
                     <option value="OUTBOUND">Xuất Hàng Khỏi Kho (Outbound)</option>
-                    <option value="INTERNAL_TRANSFER">Chuyển Kho Nội Bộ</option>
                   </select>
                 </div>
                 <div>
@@ -491,27 +562,64 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
       {/* TAB 2: DOCK ALLOCATION */}
       {activeTab === 'dock' && (
         <div className="space-y-6">
+          <div className="bg-indigo-50/60 p-4 rounded-xl border border-indigo-100 flex items-center justify-between text-xs text-indigo-900">
+            <span className="font-semibold flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[18px] text-indigo-600">touch_app</span>
+              Mẹo thao tác nhanh: Bạn có thể click chọn 1 dòng xe trong bảng &rarr; rồi click trực tiếp vào bất kỳ thẻ Cửa Dock nào ở sơ đồ bên trên để điều phối xe cực nhanh!
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {sampleDocks.map(d => (
-              <div
-                key={d.id}
-                className={`p-5 rounded-2xl border transition-all ${
-                  d.status === 'AVAILABLE'
-                    ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
-                    : 'bg-amber-50/60 border-amber-200 text-amber-950'
-                }`}
-              >
-                <div className="flex justify-between items-start mb-2">
-                  <span className="font-bold text-lg font-data-mono">{d.code}</span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                    d.status === 'AVAILABLE' ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
-                  }`}>
-                    {d.status === 'AVAILABLE' ? 'SẴN SÀNG' : 'ĐANG BỐC HẠ'}
-                  </span>
+            {docks.map(d => {
+              const activeTruck = entries.find(e => {
+                if (e.status !== 'LOADING') return false;
+                if (e.dock_code === d.code) return true;
+                if (e.dock_location_id === d.code || e.dock_location_id === d.id) return true;
+                const resolved = e.dock_code || docks.find(s => s.id === e.dock_location_id || s.code === e.dock_location_id)?.code;
+                return resolved === d.code;
+              });
+              const isBusy = !!activeTruck;
+              const candidateTruck = entries.find(e => e.id === selectedEntryForDock) || entries.find(e => e.status === 'WEIGHED_IN') || entries.find(e => e.status === 'LOADING');
+
+              return (
+                <div
+                  key={d.id}
+                  onClick={() => {
+                    if (candidateTruck) {
+                      setConfirmDockModal({
+                        isOpen: true,
+                        truckEntry: candidateTruck,
+                        dock: d
+                      });
+                    } else {
+                      setAlertMessage({ type: 'error', text: 'Không có xe nào trong danh sách để điều phối vào Dock!' });
+                    }
+                  }}
+                  title={!isBusy ? `Click để mở xác nhận gán xe vào ${d.code}` : undefined}
+                  className={`p-5 rounded-2xl border transition-all cursor-pointer hover:shadow-md hover:scale-[1.01] ${
+                    !isBusy
+                      ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950 hover:border-emerald-400'
+                      : 'bg-amber-50/60 border-amber-200 text-amber-950 shadow-sm ring-2 ring-amber-300'
+                  }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <span className="font-bold text-lg font-data-mono">{d.code}</span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                      !isBusy ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
+                    }`}>
+                      {!isBusy ? 'SẴN SÀNG' : 'ĐANG BỐC HẠ'}
+                    </span>
+                  </div>
+                  <div className="text-sm font-medium text-slate-700">{d.name}</div>
+                  {activeTruck && (
+                    <div className="mt-2 text-xs font-data-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-1 rounded-lg flex items-center justify-between border border-amber-300">
+                      <span>Xe: {activeTruck.license_plate}</span>
+                      <span className="text-[10px] text-amber-700">{activeTruck.entry_code}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="text-sm font-medium text-slate-700">{d.name}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
@@ -529,42 +637,77 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
                     <th className="p-3">Trọng Lượng Vào ($W_1$)</th>
                     <th className="p-3">Trạng Thái</th>
                     <th className="p-3">Chỉ Định Dock</th>
-                    <th className="p-3 text-right">Thao Tác</th>
+                    <th className="p-3 text-right">Thao Tác Gán Dock</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {entries.filter(e => e.status === 'WEIGHED_IN' || e.status === 'LOADING').map(e => (
-                    <tr key={e.id} className="hover:bg-slate-50">
-                      <td className="p-3 font-data-mono font-bold text-indigo-700">{e.entry_code}</td>
-                      <td className="p-3 font-data-mono font-bold text-slate-900">{e.license_plate}</td>
-                      <td className="p-3">{e.driver_name}</td>
-                      <td className="p-3 font-data-mono">{e.weight_in ? `${e.weight_in.toLocaleString()} kg` : '-'}</td>
-                      <td className="p-3">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                          e.status === 'LOADING' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {e.status === 'LOADING' ? 'Đang hạ hàng' : 'Đã cân W1'}
-                        </span>
-                      </td>
-                      <td className="p-3 font-data-mono font-bold text-slate-800">{e.dock_location_id || 'Chưa điều phối'}</td>
-                      <td className="p-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            onClick={() => handleAssignDockSubmit(e.id, 'DOCK-01')}
-                            className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors"
-                          >
-                            Gán DOCK-01
-                          </button>
-                          <button
-                            onClick={() => handleAssignDockSubmit(e.id, 'DOCK-02')}
-                            className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-semibold px-3 py-1.5 rounded-lg text-xs transition-colors"
-                          >
-                            Gán DOCK-02
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {entries.filter(e => e.status === 'WEIGHED_IN' || e.status === 'LOADING').map(e => {
+                    const isSelected = selectedEntryForDock === e.id;
+                    const displayDock = e.dock_code || docks.find(d => d.id === e.dock_location_id || d.code === e.dock_location_id)?.code || e.dock_location_id;
+
+                    return (
+                      <tr
+                        key={e.id}
+                        onClick={() => setSelectedEntryForDock(e.id)}
+                        className={`transition-colors cursor-pointer ${
+                          isSelected ? 'bg-indigo-50/90 border-l-4 border-l-indigo-600 shadow-sm' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <td className="p-3 font-data-mono font-bold text-indigo-700">
+                          {e.entry_code}
+                          {isSelected && (
+                            <span className="text-[10px] bg-indigo-600 text-white font-bold px-1.5 py-0.5 rounded ml-2 font-body-md">
+                              ĐANG CHỌN
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 font-data-mono font-bold text-slate-900">{e.license_plate}</td>
+                        <td className="p-3">{e.driver_name}</td>
+                        <td className="p-3 font-data-mono">{e.weight_in ? `${e.weight_in.toLocaleString()} kg` : '-'}</td>
+                        <td className="p-3">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                            e.status === 'LOADING' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {e.status === 'LOADING' ? 'Đang hạ hàng' : 'Đã cân W1'}
+                          </span>
+                        </td>
+                        <td className="p-3 font-data-mono font-bold text-indigo-900 bg-indigo-50/50 px-2.5 py-1 rounded-md inline-block my-2 border border-indigo-200">
+                          {displayDock || 'Chưa điều phối'}
+                        </td>
+                        <td className="p-3 text-right" onClick={(ev) => ev.stopPropagation()}>
+                          <div className="flex justify-end items-center gap-2">
+                            <select
+                              id={`dock-select-${e.id}`}
+                              defaultValue={displayDock || 'DOCK-A01'}
+                              className="bg-slate-50 border border-slate-300 font-data-mono font-semibold text-slate-800 text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                              {docks.map(d => (
+                                <option key={d.code} value={d.code}>
+                                  {d.code} - {d.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => {
+                                const sel = document.getElementById(`dock-select-${e.id}`) as HTMLSelectElement;
+                                const selectedDockCode = sel ? sel.value : 'DOCK-A01';
+                                const dockObj = docks.find(x => x.code === selectedDockCode) || { id: selectedDockCode, code: selectedDockCode, name: selectedDockCode, status: 'AVAILABLE' };
+                                setConfirmDockModal({
+                                  isOpen: true,
+                                  truckEntry: e,
+                                  dock: dockObj
+                                });
+                              }}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1 shadow-sm"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">check</span>
+                              Gán Dock
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {entries.filter(e => e.status === 'WEIGHED_IN' || e.status === 'LOADING').length === 0 && (
                     <tr>
                       <td colSpan={7} className="p-6 text-center text-slate-400">Không có xe nào đang chờ điều phối Dock</td>
@@ -603,9 +746,44 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {activeScaleOutEntry && (
+                <div className="bg-indigo-50/80 p-3.5 rounded-xl border border-indigo-200 flex items-center justify-between text-xs text-indigo-950 animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-indigo-600">receipt_long</span>
+                    <div>
+                      <span className="font-bold text-slate-700">Đơn Hàng Khai Báo WMS: </span>
+                      <span className="font-data-mono font-bold text-indigo-700">{activeScaleOutEntry.po_do_code || 'PO-20260728-08'}</span>
+                      <span className="mx-2 text-slate-300">|</span>
+                      <span>Mặt Hàng: <strong className="text-slate-900">{activeScaleOutEntry.sku_name || 'Bia 333 Lon 330ml'}</strong></span>
+                      <span className="mx-2 text-slate-300">|</span>
+                      <span>Số Lượng Đăng Ký: <strong className="text-slate-900">{activeScaleOutEntry.expected_qty_cases || 500} thùng</strong></span>
+                    </div>
+                  </div>
+                  <span className="bg-indigo-200 text-indigo-800 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider shrink-0">
+                    Tự Động Đánh Giá
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Số Lượng Đếm Thực Tế (Thùng/Két)</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Mặt Hàng (SKU Quy Chuẩn)</label>
+                  <select
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      if (val > 0) setStdWeightPerCase(val);
+                    }}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="11.2">Bia 333 Lon 330ml (11.2 kg/thùng)</option>
+                    <option value="19.5">Bia Saigon Special Chai (19.5 kg/két)</option>
+                    <option value="62.0">Bia Keg Saigon 50L (62.0 kg/keg)</option>
+                    <option value="9.8">Nước Ngọt Mirinda (9.8 kg/thùng)</option>
+                    <option value="0">Tùy chỉnh thủ công...</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Số Lượng Đơn Hàng (Thùng/Két/Keg)</label>
                   <input
                     type="number"
                     value={expectedQtyCases}
@@ -614,7 +792,7 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Trọng Lượng Chuẩn SKU (kg/thùng)</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Trọng Lượng Chuẩn SKU (kg/đơn vị)</label>
                   <input
                     type="number"
                     step="0.1"
@@ -812,6 +990,72 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION MODAL */}
+      {confirmDockModal.isOpen && confirmDockModal.truckEntry && confirmDockModal.dock && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-scale-up">
+            <div className="flex items-center gap-3 text-indigo-600 border-b border-slate-100 pb-4">
+              <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-indigo-600 text-2xl">move_location</span>
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">Xác Nhận Điều Phối Xe Vào Dock</h3>
+                <p className="text-xs text-slate-500">Vui lòng kiểm tra kỹ thông tin trước khi gán Dock</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-xl space-y-2.5 text-xs text-slate-700 font-medium border border-slate-200/80">
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500">Biển Số Xe:</span>
+                <span className="font-bold text-sm font-data-mono text-indigo-700">{confirmDockModal.truckEntry.license_plate}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500">Tài Xế:</span>
+                <span className="font-bold text-slate-900">{confirmDockModal.truckEntry.driver_name}</span>
+              </div>
+              <div className="flex justify-between items-center pb-2 border-b border-slate-200">
+                <span className="text-slate-500">Mã Chuyến Xe:</span>
+                <span className="font-data-mono font-bold text-slate-800">{confirmDockModal.truckEntry.entry_code}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-slate-500">Cửa Dock Chỉ Định:</span>
+                <span className="font-bold text-sm font-data-mono text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded border border-emerald-300">
+                  {confirmDockModal.dock.code}
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-500 font-normal pt-1 text-right italic">
+                ({confirmDockModal.dock.name})
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDockModal({ isOpen: false, truckEntry: null, dock: null })}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-700 hover:bg-slate-100 text-xs transition-colors"
+              >
+                Hủy Bỏ
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirmDockModal.truckEntry && confirmDockModal.dock) {
+                    const entryId = confirmDockModal.truckEntry.id;
+                    const dockCode = confirmDockModal.dock.code;
+                    setConfirmDockModal({ isOpen: false, truckEntry: null, dock: null });
+                    await handleAssignDockSubmit(entryId, dockCode);
+                  }
+                }}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-200 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                Xác Nhận Gán Xe
+              </button>
+            </div>
           </div>
         </div>
       )}

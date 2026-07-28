@@ -41,6 +41,20 @@ export class GateService {
     return `GATE-${dateStr}-${randomSuffix}`;
   }
 
+  private async resolveDockLocationId(input?: string): Promise<string | null> {
+    if (!input || !input.trim()) return null;
+    const trimmed = input.trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed);
+    if (isUuid) return trimmed;
+
+    const rows = await this.db.query(
+      `SELECT id FROM warehouse.location WHERE upper(code) = upper($1) OR upper(barcode) = upper($1) LIMIT 1`,
+      [trimmed]
+    );
+    const first = rows[0] as { id: string } | undefined;
+    return first?.id ?? null;
+  }
+
   async createCheckIn(dto: CreateCheckInDto, createdByUserId?: string) {
     if (!dto.licensePlate?.trim()) {
       throw new BadRequestException('Biển số xe không được để trống');
@@ -50,6 +64,7 @@ export class GateService {
     }
 
     const entryCode = this.generateEntryCode();
+    const dockLocationId = await this.resolveDockLocationId(dto.dockLocationId);
 
     const rows = await this.db.query(
       `INSERT INTO gate.truck_entry (
@@ -67,7 +82,7 @@ export class GateService {
         dto.purpose || 'INBOUND',
         dto.poId || null,
         dto.soId || null,
-        dto.dockLocationId || null
+        dockLocationId
       ]
     );
 
@@ -119,16 +134,23 @@ export class GateService {
   }
 
   async assignDock(dto: AssignDockDto) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dto.truckEntryId);
+    if (!isUuid) {
+      throw new NotFoundException('Không tìm thấy thông tin chuyến xe (Mã ID không hợp lệ)');
+    }
+
     const entries = await this.db.query(`SELECT * FROM gate.truck_entry WHERE id = $1`, [dto.truckEntryId]);
     if (entries.length === 0) {
       throw new NotFoundException('Không tìm thấy thông tin chuyến xe');
     }
 
+    const dockLocationId = await this.resolveDockLocationId(dto.dockLocationId);
+
     const updated = await this.db.query(
       `UPDATE gate.truck_entry 
        SET dock_location_id = $1, status = 'LOADING', updated_at = now() 
        WHERE id = $2 RETURNING *`,
-      [dto.dockLocationId, dto.truckEntryId]
+      [dockLocationId, dto.truckEntryId]
     );
 
     return updated[0];
@@ -207,9 +229,10 @@ export class GateService {
 
   async listEntries(status?: string) {
     let sql = `
-      SELECT e.*, t.weight_in, t.weight_out, t.net_weight, t.expected_weight, t.diff_percentage, t.verification_status
+      SELECT e.*, t.weight_in, t.weight_out, t.net_weight, t.expected_weight, t.diff_percentage, t.verification_status, COALESCE(l.code, e.dock_location_id::text) as dock_code
       FROM gate.truck_entry e
       LEFT JOIN gate.weighbridge_ticket t ON t.truck_entry_id = e.id
+      LEFT JOIN warehouse.location l ON l.id = e.dock_location_id
     `;
     const params: unknown[] = [];
 
@@ -225,9 +248,10 @@ export class GateService {
 
   async getEntryById(id: string) {
     const rows = await this.db.query(
-      `SELECT e.*, t.weight_in, t.weighed_in_at, t.weight_out, t.weighed_out_at, t.net_weight, t.expected_weight, t.diff_percentage, t.verification_status, t.notes
+      `SELECT e.*, t.weight_in, t.weighed_in_at, t.weight_out, t.weighed_out_at, t.net_weight, t.expected_weight, t.diff_percentage, t.verification_status, t.notes, COALESCE(l.code, e.dock_location_id::text) as dock_code
        FROM gate.truck_entry e
        LEFT JOIN gate.weighbridge_ticket t ON t.truck_entry_id = e.id
+       LEFT JOIN warehouse.location l ON l.id = e.dock_location_id
        WHERE e.id = $1`,
       [id]
     );
@@ -237,5 +261,78 @@ export class GateService {
     }
 
     return rows[0];
+  }
+
+  async listDocks() {
+    const sql = `
+      SELECT l.id, l.code, CONCAT('Cửa ', CASE WHEN l.code LIKE '%01' THEN 'Nhập Hàng' ELSE 'Xuất Hàng' END, ' - ', z.name) as name, l.status, z.name as zone_name, z.code as zone_code
+      FROM warehouse.location l
+      JOIN warehouse.zone z ON z.id = l.zone_id
+      JOIN warehouse.warehouse w ON w.id = z.warehouse_id
+      WHERE l.code LIKE 'DOCK-%' AND w.code = 'KHO-CITARES'
+      ORDER BY l.code ASC
+    `;
+    const rows = await this.db.query(sql);
+    if (rows.length === 0) {
+      return await this.db.query(`
+        SELECT l.id, l.code, l.code as name, l.status, z.name as zone_name, z.code as zone_code
+        FROM warehouse.location l
+        JOIN warehouse.zone z ON z.id = l.zone_id
+        WHERE l.code LIKE 'DOCK-%'
+        ORDER BY l.code ASC
+      `);
+    }
+    return rows;
+  }
+
+  async listApprovedOrders() {
+    let pos: any[] = [];
+    let dos: any[] = [];
+
+    try {
+      pos = await this.db.query(`
+        SELECT po.id,
+               po.po_code as order_code,
+               'INBOUND' as purpose,
+               COALESCE(s.name, s.code, 'Nhà Cung Cấp Đồ Uống') as partner_name,
+               COUNT(pol.id)::int as total_skus,
+               COALESCE(SUM(pol.ordered_qty), 0)::int as total_qty,
+               COALESCE(ROUND(SUM(pol.ordered_qty * 12.0)), 0)::int as expected_weight_kg,
+               'PO' as type
+        FROM purchasing.purchase_order po
+        LEFT JOIN purchasing.supplier s ON s.id = po.supplier_id
+        LEFT JOIN purchasing.purchase_order_line pol ON pol.po_id = po.id
+        WHERE po.status = 'APPROVED' AND (s.status = 'ACTIVE' OR s.status IS NULL)
+        GROUP BY po.id, po.po_code, po.created_at, s.name, s.code
+        ORDER BY po.created_at DESC
+        LIMIT 20
+      `);
+    } catch (e) {
+      console.error('Error fetching approved POs for Gate:', e);
+      pos = [];
+    }
+
+    try {
+      dos = await this.db.query(`
+        SELECT o.id,
+               o.order_number as order_code,
+               'OUTBOUND' as purpose,
+               COALESCE(c.name, 'Đại Lý Phương Trang') as partner_name,
+               COUNT(ol.id)::int as total_skus,
+               COALESCE(SUM(ol.requested_qty), 0)::int as total_qty,
+               COALESCE(ROUND(SUM(ol.requested_qty * 12.0)), 0)::int as expected_weight_kg,
+               'DO' as type
+        FROM outbound.outbound_order o
+        LEFT JOIN outbound.customer c ON c.id = o.customer_id
+        LEFT JOIN outbound.outbound_order_line ol ON ol.outbound_order_id = o.id
+        GROUP BY o.id, o.order_number, o.created_at, c.name
+        ORDER BY o.created_at DESC
+        LIMIT 20
+      `);
+    } catch (e) {
+      dos = [];
+    }
+
+    return [...pos, ...dos];
   }
 }

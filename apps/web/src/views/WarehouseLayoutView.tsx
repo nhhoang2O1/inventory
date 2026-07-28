@@ -108,9 +108,23 @@ export const WarehouseLayoutView: React.FC<WarehouseLayoutViewProps> = ({ actorI
 
   const handleDeleteNode = () => {
     if (!selectedNode) return;
+
+    if (selectedNode.type === 'RACK') {
+      const info = mergedOccupancyMap[selectedNode.code] || mergedOccupancyMap[selectedNode.code.toUpperCase()];
+      const currentUnits = info?.sellableUnits ?? info?.atpUnits ?? 0;
+      if (currentUnits > 0) {
+        setMessage({
+          type: 'error',
+          text: `🚫 Ô Kệ (${selectedNode.code}) đang chứa ${currentUnits} thùng hàng! Hệ thống không cho phép xóa Kệ đang lưu trữ hàng hóa, bạn chỉ được phép di chuyển thay đổi vị trí.`
+        });
+        return;
+      }
+    }
+
     const updated = nodes.filter((n) => n.id !== selectedNode.id);
     setNodes(updated);
     setSelectedNode(null);
+    setMessage({ type: 'success', text: `🗑️ Đã xóa vật thể (${selectedNode.name || selectedNode.code}) khỏi sơ đồ.` });
   };
 
   const handleSaveLayout = async (): Promise<string | null> => {
@@ -366,14 +380,38 @@ export const WarehouseLayoutView: React.FC<WarehouseLayoutViewProps> = ({ actorI
                     </div>
                   </label>
 
-                  <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                    <button onClick={handleRotateNode} style={{ flex: 1, padding: '8px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>
-                      🔄 Xoay 90° ({selectedNode.rotation || 0}°)
-                    </button>
-                    <button onClick={handleDeleteNode} style={{ padding: '8px 12px', background: '#ef4444', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>
-                      🗑️ Xóa
-                    </button>
-                  </div>
+                  {(() => {
+                    const isRack = selectedNode.type === 'RACK';
+                    const info = isRack ? (mergedOccupancyMap[selectedNode.code] || mergedOccupancyMap[selectedNode.code.toUpperCase()]) : undefined;
+                    const units = info?.sellableUnits ?? info?.atpUnits ?? 0;
+                    const hasStock = isRack && units > 0;
+
+                    return (
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+                        <button onClick={handleRotateNode} style={{ flex: 1, padding: '8px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }}>
+                          🔄 Xoay 90° ({selectedNode.rotation || 0}°)
+                        </button>
+                        <button
+                          onClick={handleDeleteNode}
+                          disabled={hasStock}
+                          style={{
+                            padding: '8px 12px',
+                            background: hasStock ? '#475569' : '#ef4444',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: hasStock ? 'not-allowed' : 'pointer',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            opacity: hasStock ? 0.75 : 1
+                          }}
+                          title={hasStock ? `Ô Kệ (${selectedNode.code}) đang chứa ${units} thùng - Chỉ được phép thay đổi vị trí` : 'Xóa vật thể khỏi sơ đồ'}
+                        >
+                          {hasStock ? '🔒 Không Thể Xóa' : '🗑️ Xóa'}
+                        </button>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ) : (

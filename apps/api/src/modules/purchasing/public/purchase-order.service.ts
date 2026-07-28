@@ -82,13 +82,74 @@ export class PurchaseOrderService{
     await this.audit(client,actorId,'SEND',po,po.warehouse_id,correlationId,undefined,{status:'SENT',expectedDeliveryDate:delivery.rows[0]?.date});
     await client.query(`INSERT INTO platform.outbox_event(aggregate_type,aggregate_id,event_type,payload,correlation_id) VALUES('PURCHASE_ORDER',$1,'PURCHASE_ORDER_SENT',$2::jsonb,$3)`,[id,JSON.stringify({purchaseOrderId:id}),correlationId]);return this.load(client,updated.rows[0]!);});}
 
-  async close(actorId:string,id:string,expectedVersion:number,reason:string,correlationId:string){if(!reason.trim())throw new ConflictException('Close reason is required');return this.db.transaction(async(client)=>{const po=await this.lock(client,id);
-    if(!po.warehouse_id||!await this.db.hasAccess(actorId,'PURCHASING.PO_CLOSE',po.warehouse_id,client))throw new ForbiddenException('PURCHASING.PO_CLOSE is required');if(Number(po.version)!==expectedVersion)throw new ConflictException('VERSION_CONFLICT');
-    if(!['APPROVED','SENT','PARTIALLY_RECEIVED','RECEIVED'].includes(po.status))throw new ConflictException(`Cannot close PO in ${po.status} status`);
-    await client.query(`UPDATE purchasing.purchase_order_delivery_schedule schedule SET status='CANCELLED',updated_at=now() FROM purchasing.purchase_order_line line
-      WHERE schedule.purchase_order_line_id=line.id AND line.po_id=$1 AND schedule.status IN('OPEN','PARTIALLY_RECEIVED')`,[id]);
-    const updated=await client.query<PoRow>(`UPDATE purchasing.purchase_order SET status='CLOSED',closed_by=$2,closed_at=now(),close_reason=$3,version=version+1,updated_at=now() WHERE id=$1 RETURNING *`,[id,actorId,reason.trim()]);
-    await this.audit(client,actorId,'CLOSE',po,po.warehouse_id,correlationId,reason,{status:'CLOSED'});return this.load(client,updated.rows[0]!);});}
+
+  async listAllPOs() {
+    return await this.db.query(`
+      SELECT po.id, po.po_code AS "poCode", po.status, po.order_date AS "orderDate",
+             po.expected_delivery_date AS "expectedDeliveryDate",
+             po.created_by AS "createdBy",
+             COALESCE(u.display_name, u.username) AS "creatorName",
+             COALESCE(s.name, s.code) AS "supplierName",
+             s.code AS "supplierCode",
+             s.standard_lead_time_days AS "leadTimeDays",
+             COALESCE((
+               SELECT json_agg(json_build_object(
+                 'id', pol.id,
+                 'skuId', pol.sku_id,
+                 'skuCode', k.code,
+                 'skuName', k.name,
+                 'orderedQty', pol.ordered_qty,
+                 'unitPrice', pol.unit_price
+               ))
+               FROM purchasing.purchase_order_line pol
+               LEFT JOIN catalog.sku k ON k.id = pol.sku_id
+               WHERE pol.po_id = po.id
+             ), '[]'::json) AS lines
+      FROM purchasing.purchase_order po
+      LEFT JOIN purchasing.supplier s ON s.id = po.supplier_id
+      LEFT JOIN iam.app_user u ON u.id = po.created_by
+      WHERE po.status != 'CANCELLED' AND s.status = 'ACTIVE'
+      ORDER BY po.created_at DESC
+    `);
+  }
+
+  async createPublicPO(body: { supplierId: string; lines: { skuId: string; orderedQty: number; unitPrice?: number }[]; deliverySlot?: string }) {
+    const poCode = `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`;
+
+    // Get manager ID
+    const userRows = await this.db.query(`SELECT id FROM iam.app_user WHERE username = 'manager' LIMIT 1`);
+    const managerId = userRows[0]?.id || '00000000-0000-0000-0000-000000000001';
+
+    // Get supplier lead time
+    const supplierRows = await this.db.query<{ standard_lead_time_days: number }>(`SELECT standard_lead_time_days FROM purchasing.supplier WHERE id = $1`, [body.supplierId]);
+    const leadTime = supplierRows[0]?.standard_lead_time_days || 2;
+
+    const inserted = await this.db.query<{ id: string }>(`
+      INSERT INTO purchasing.purchase_order (po_code, supplier_id, status, created_by, expected_delivery_date)
+      VALUES ($1, $2, 'APPROVED', $3, now() + interval '${leadTime} days')
+      RETURNING id
+    `, [poCode, body.supplierId, managerId]);
+
+    const poId = inserted[0]?.id;
+
+    if (poId && Array.isArray(body.lines)) {
+      for (const line of body.lines) {
+        const skuRows = await this.db.query<{ base_uom_id: string }>(`SELECT base_uom_id FROM catalog.sku WHERE id = $1`, [line.skuId]);
+        const uomRows = await this.db.query<{ id: string }>(`SELECT id FROM catalog.unit_of_measure LIMIT 1`);
+        const uomId = skuRows[0]?.base_uom_id || uomRows[0]?.id;
+
+        if (uomId) {
+          await this.db.query(`
+            INSERT INTO purchasing.purchase_order_line (po_id, sku_id, uom_id, ordered_qty, unit_price)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT DO NOTHING
+          `, [poId, line.skuId, uomId, line.orderedQty, line.unitPrice || 240000.00]);
+        }
+      }
+    }
+
+    return { id: poId, poCode, status: 'APPROVED' };
+  }
 
   private state(po:PoRow,status:string,version:number){if(po.status!==status)throw new ConflictException(`Purchase order must be ${status}`);if(Number(po.version)!==version)throw new ConflictException('VERSION_CONFLICT');}
   private async lock(client:import('pg').PoolClient,id:string){const rows=await client.query<PoRow>('SELECT * FROM purchasing.purchase_order WHERE id=$1 FOR UPDATE',[id]);if(!rows.rows[0])throw new NotFoundException('Purchase order not found');return rows.rows[0];}

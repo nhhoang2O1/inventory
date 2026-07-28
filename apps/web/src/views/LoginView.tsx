@@ -131,18 +131,18 @@ export function LoginView({
         <div className="mt-2 bg-surface-container rounded-lg p-3 text-[12px] text-on-surface-variant flex flex-col gap-1 border border-outline-variant border-dashed">
           <span className="font-bold text-secondary flex items-center gap-1">
             <span className="material-symbols-outlined text-[14px]">info</span>
-            Tài khoản dùng thử (Mật khẩu: WmsDemo2026! hoặc 123456)
+            Tài khoản Bãi Kho Tập Trung CITARES (Mật khẩu: 123456 hoặc WmsDemo2026!)
           </span>
           <div className="flex flex-col gap-1.5 mt-1">
-            <div><span className="font-semibold text-primary">• Quản lý Tổng:</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded text-[11px]">manager</code></div>
+            <div><span className="font-semibold text-primary">• Quản Lý Bãi Kho:</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded text-[11px]">manager</code></div>
             <div className="border-t border-outline-variant pt-1 text-[11px]">
-              <span className="font-semibold text-secondary">• Kho Alpha (KHO-A):</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">storekeeper_a</code> / <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">accountant_a</code> / <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">sales_a</code>
+              <span className="font-semibold text-indigo-700">• Bảo Vệ Cổng &amp; Trạm Cân:</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">gatekeeper</code>
             </div>
             <div className="border-t border-outline-variant pt-1 text-[11px]">
-              <span className="font-semibold text-secondary">• Kho Beta (KHO-B):</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">storekeeper_b</code> / <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">accountant_b</code> / <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">sales_b</code>
+              <span className="font-semibold text-emerald-700">• Thủ Kho Bãi Tập Trung:</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">storekeeper</code>
             </div>
             <div className="border-t border-outline-variant pt-1 text-[11px]">
-              <span className="font-semibold text-secondary">• Kho Gamma (KHO-C):</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">storekeeper_c</code> / <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">accountant_c</code> / <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">sales_c</code>
+              <span className="font-semibold text-secondary">• Kế Toán &amp; Bán Hàng:</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">accountant_a</code> / <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">sales_a</code>
             </div>
           </div>
         </div>

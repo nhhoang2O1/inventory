@@ -32,23 +32,11 @@ export function Header({ warehouses, selectedWarehouseId, onWarehouseChange, ope
 
       {/* Warehouse Selector & User Profile */}
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-[18px] text-on-surface-variant">warehouse</span>
-          <select
-            className="bg-surface-container-low border border-outline-variant rounded px-2.5 py-1 text-xs text-on-surface font-semibold focus:ring-1 focus:ring-secondary focus:outline-none"
-            value={selectedWarehouseId}
-            onChange={(e) => onWarehouseChange(e.target.value)}
-          >
-            {warehouses.length > 0 ? (
-              warehouses.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name} ({w.code})
-                </option>
-              ))
-            ) : (
-              <option value="">Không có kho</option>
-            )}
-          </select>
+        <div className="flex items-center gap-2 bg-indigo-50 text-indigo-900 px-3 py-1.5 rounded-lg border border-indigo-200">
+          <span className="material-symbols-outlined text-[18px] text-indigo-700">domain</span>
+          <span className="text-xs font-bold font-data-mono">
+            {warehouses.find(w => w.id === selectedWarehouseId)?.name || 'Bãi Kho Tập Trung CITARES'}
+          </span>
         </div>
 
         {/* MFA Active Pill */}

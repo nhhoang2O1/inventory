@@ -30,6 +30,16 @@ export class GateController {
     return await this.gateService.checkOut(body.truckEntryId);
   }
 
+  @Get('approved-orders')
+  async listApprovedOrders() {
+    return await this.gateService.listApprovedOrders();
+  }
+
+  @Get('docks')
+  async listDocks() {
+    return await this.gateService.listDocks();
+  }
+
   @Get('entries')
   async listEntries(@Query('status') status?: string) {
     return await this.gateService.listEntries(status);

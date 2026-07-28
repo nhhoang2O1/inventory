@@ -11,6 +11,7 @@ import { ApprovalView } from './views/ApprovalView';
 import { QualityView } from './views/QualityView';
 import { WarehouseLayoutView } from './views/WarehouseLayoutView';
 import { GateWeighbridgeView } from './views/GateWeighbridgeView';
+import { PurchasingView } from './views/PurchasingView';
 
 // Import custom hooks (The ViewModel layer)
 import { useAuth } from './hooks/useAuth';
@@ -190,6 +191,10 @@ export function App() {
               actorId={auth.userId}
               warehouseId={auth.selectedWarehouseId}
             />
+          )}
+
+          {auth.isLoggedIn && auth.view === 'purchasing' && (
+            <PurchasingView />
           )}
         </main>
       </div>

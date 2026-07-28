@@ -163,6 +163,18 @@ export function Sidebar({ currentView, setView, userRole, setUserRole, onLogout 
             <span className={`material-symbols-outlined ${currentView === 'gate' ? 'fill' : ''}`}>local_shipping</span>
             <span className="font-label-caps text-label-caps">Cổng &amp; Trạm Cân</span>
           </button>
+
+          <button
+            onClick={() => setView('purchasing')}
+            className={`w-full flex items-center gap-3 px-4 py-3 text-left rounded-lg transition-all duration-200 active:scale-95 ${
+              currentView === 'purchasing'
+                ? 'bg-secondary-container text-on-secondary-container font-bold border-l-4 border-secondary'
+                : 'text-on-surface-variant hover:bg-surface-container-high'
+            }`}
+          >
+            <span className={`material-symbols-outlined ${currentView === 'purchasing' ? 'fill' : ''}`}>shopping_cart</span>
+            <span className="font-label-caps text-label-caps">Đơn Mua Hàng &amp; NCC (PO)</span>
+          </button>
         </nav>
 
         {/* Support / System Footer info */}
