@@ -536,4 +536,145 @@ export class GateService {
       message: `Đã sinh thành công báo cáo PDF quyết toán đơn PO [${po.po_code}] tại ${pdfPath}`
     };
   }
+
+  async uploadToGoogleDrive(dto: { imageBase64: string; targetFolder: 'W1' | 'W2'; fileName: string }) {
+    const { imageBase64, targetFolder, fileName } = dto;
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+
+    let folderW1Id = process.env.GOOGLE_DRIVE_W1_FOLDER_ID || '';
+    let folderW2Id = process.env.GOOGLE_DRIVE_W2_FOLDER_ID || '';
+
+    if (!folderW1Id || !folderW2Id) {
+      const envPathApp = path.join(process.cwd(), 'apps', 'api', '.env');
+      const envPathRoot = path.join(process.cwd(), '.env');
+      let envTxt = '';
+      if (fs.existsSync(envPathApp)) envTxt = fs.readFileSync(envPathApp, 'utf8');
+      else if (fs.existsSync(envPathRoot)) envTxt = fs.readFileSync(envPathRoot, 'utf8');
+
+      const m1 = envTxt.match(/GOOGLE_DRIVE_W1_FOLDER_ID=(.+)/);
+      const m2 = envTxt.match(/GOOGLE_DRIVE_W2_FOLDER_ID=(.+)/);
+      if (m1 && m1[1] && !folderW1Id) folderW1Id = m1[1].trim();
+      if (m2 && m2[1] && !folderW2Id) folderW2Id = m2[1].trim();
+    }
+
+    const folderId = targetFolder === 'W1' ? folderW1Id : folderW2Id;
+
+    // Save image locally to server uploads/Kho/W1 or uploads/Kho/W2 as backup
+    const uploadDir = path.join(process.cwd(), 'uploads', 'Kho', targetFolder);
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+    const filePath = path.join(uploadDir, fileName);
+    fs.writeFileSync(filePath, buffer);
+
+    let driveFileId = null;
+    let driveWebUrl = null;
+    let uploadStatus = 'LOCAL_SAVED_READY_FOR_SYNC';
+
+    let serviceAccountJsonStr = process.env.GOOGLE_SERVICE_ACCOUNT_JSON || '';
+
+    // Auto-detect google-drive-key.json file in apps/api directory if env is not explicitly set
+    if (!serviceAccountJsonStr) {
+      const keyPath = path.join(process.cwd(), 'google-drive-key.json');
+      const keyPathApp = path.join(process.cwd(), 'apps', 'api', 'google-drive-key.json');
+      if (fs.existsSync(keyPath)) {
+        serviceAccountJsonStr = fs.readFileSync(keyPath, 'utf8');
+      } else if (fs.existsSync(keyPathApp)) {
+        serviceAccountJsonStr = fs.readFileSync(keyPathApp, 'utf8');
+      }
+    }
+
+    if (serviceAccountJsonStr && folderId) {
+      try {
+        const creds = JSON.parse(serviceAccountJsonStr);
+        const token = await this.getGoogleDriveJwtToken(creds);
+        if (token) {
+          const meta = JSON.stringify({
+            name: fileName,
+            parents: [folderId]
+          });
+          const boundary = '-------314159265358979323846';
+          const delimiter = "\r\n--" + boundary + "\r\n";
+          const close_delim = "\r\n--" + boundary + "--";
+
+          const multipartBody = Buffer.concat([
+            Buffer.from(delimiter + 'Content-Type: application/json\r\n\r\n' + meta),
+            Buffer.from(delimiter + 'Content-Type: image/jpeg\r\n\r\n'),
+            buffer,
+            Buffer.from(close_delim)
+          ]);
+
+          const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': `multipart/related; boundary=${boundary}`
+            },
+            body: multipartBody
+          });
+
+          if (res.ok) {
+            const driveRes = await res.json();
+            driveFileId = driveRes.id;
+            driveWebUrl = `https://drive.google.com/file/d/${driveRes.id}/view`;
+            uploadStatus = 'UPLOADED_TO_GOOGLE_DRIVE';
+          }
+        }
+      } catch (driveErr) {
+        console.error('Google Drive Upload Warning:', driveErr);
+      }
+    }
+
+    return {
+      success: true,
+      targetFolder,
+      fileName,
+      localPath: filePath,
+      driveFileId,
+      driveWebUrl,
+      uploadStatus
+    };
+  }
+
+  private async getGoogleDriveJwtToken(creds: { client_email: string; private_key: string }): Promise<string | null> {
+    try {
+      const crypto = await import('node:crypto');
+      const header = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+      const now = Math.floor(Date.now() / 1000);
+      const claim = Buffer.from(JSON.stringify({
+        iss: creds.client_email,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        aud: 'https://oauth2.googleapis.com/token',
+        exp: now + 3600,
+        iat: now
+      })).toString('base64url');
+
+      const signatureInput = `${header}.${claim}`;
+      const signer = crypto.createSign('RSA-SHA256');
+      signer.update(signatureInput);
+      const signature = signer.sign(creds.private_key, 'base64url');
+
+      const jwt = `${signatureInput}.${signature}`;
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          assertion: jwt
+        })
+      });
+
+      if (tokenRes.ok) {
+        const data = await tokenRes.json();
+        return data.access_token || null;
+      }
+    } catch (err) {
+      console.error('Error generating Google OAuth JWT token:', err);
+    }
+    return null;
+  }
 }

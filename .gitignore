@@ -9,3 +9,8 @@ phase2-admin-gate.status
 .vscode/
 postgres-data/
 minio-data/
+google-drive-key.json
+uploads/
+exports/
+*.pdf
+

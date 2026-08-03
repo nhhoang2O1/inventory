@@ -37,6 +37,11 @@ export class GateController {
     return await this.gateService.checkOut(body.truckEntryId);
   }
 
+  @Post('upload-drive')
+  async uploadDrive(@Body() body: { imageBase64: string; targetFolder: 'W1' | 'W2'; fileName: string }) {
+    return await this.gateService.uploadToGoogleDrive(body);
+  }
+
   @Get('approved-orders')
   async listApprovedOrders() {
     return await this.gateService.listApprovedOrders();

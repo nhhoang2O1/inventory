@@ -3,8 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
 
+// @ts-ignore
+import { json, urlencoded } from 'express';
+
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
+
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ limit: '50mb', extended: true }));
+
   app.setGlobalPrefix('api/v1');
   app.enableShutdownHooks();
   app.enableCors({

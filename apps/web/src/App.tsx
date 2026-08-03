@@ -92,6 +92,8 @@ export function App() {
           {auth.isLoggedIn && auth.view === 'dashboard' && (
             <DashboardView
               pendingApprovalsCount={approval.approvalRequests.length}
+              selectedWarehouseId={auth.selectedWarehouseId}
+              warehouseCode={auth.selectedWarehouse}
             />
           )}
 

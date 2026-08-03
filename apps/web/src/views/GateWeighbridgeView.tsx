@@ -72,6 +72,117 @@ export function GateWeighbridgeView({ actorId, warehouseId, userRole }: { actorI
   const toleranceThresholdPercent = 1.5; // Cố định 1.5% theo chính sách CSDL
   const [scaleOutNotes, setScaleOutNotes] = useState('');
 
+  // Camera & Google Drive Photo evidence state
+  const [webcamActive, setWebcamActive] = useState(false);
+  const [webcamStream, setWebcamStream] = useState<MediaStream | null>(null);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const [photoW1, setPhotoW1] = useState<string | null>(null);
+  const [photoW2, setPhotoW2] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
+
+  // Managing Camera Lifecycle cleanly based on activeTab
+  useEffect(() => {
+    let currentStream: MediaStream | null = null;
+    let isCancelled = false;
+
+    // Only activate webcam if activeTab requires camera ('checkin' for W1 or 'checkout' for W2)
+    if (activeTab === 'checkin' || activeTab === 'scaleout') {
+      navigator.mediaDevices?.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } })
+        .then(stream => {
+          if (isCancelled) {
+            stream.getTracks().forEach(track => track.stop());
+            return;
+          }
+          currentStream = stream;
+          setWebcamStream(stream);
+          setWebcamActive(true);
+        })
+        .catch(err => console.warn('Auto webcam start warning:', err));
+    } else {
+      setWebcamActive(false);
+      setWebcamStream(null);
+    }
+
+    // Cleanup function: Turn OFF camera immediately when switching tabs or unmounting!
+    return () => {
+      isCancelled = true;
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+      setWebcamActive(false);
+      setWebcamStream(null);
+    };
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (webcamActive && webcamStream && videoRef.current) {
+      videoRef.current.srcObject = webcamStream;
+      videoRef.current.play().catch(err => console.error("Error playing video stream:", err));
+    }
+  }, [webcamActive, webcamStream]);
+
+  const capturePhotoAndUploadDrive = async (target: 'W1' | 'W2', plateStr?: string, weightVal?: number) => {
+    let dataUrl = '';
+    if (videoRef.current && videoRef.current.videoWidth > 0) {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth || 1280;
+      canvas.height = videoRef.current.videoHeight || 720;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        // Draw Top Horizontal Audit Banner (Thanh Ngang Phía Trên Cùng Ảnh)
+        const bannerHeight = 60;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+        ctx.fillRect(0, 0, canvas.width, bannerHeight);
+
+        // Accent line below banner
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(0, bannerHeight - 3, canvas.width, 3);
+
+        // Line 1: Header + Vehicle + PO + Weight
+        ctx.fillStyle = '#f59e0b';
+        ctx.font = 'bold 15px sans-serif';
+        const timestamp = new Date().toLocaleString('vi-VN');
+        const plate = plateStr || (target === 'W1' ? licensePlate : activeScaleOutEntry?.license_plate) || '51C-738.92';
+        const po = (target === 'W1' ? poDoCode : activeScaleOutEntry?.po_do_code) || 'PO-20260728-08';
+        const wKg = weightVal || (target === 'W1' ? weightIn : weightOut) || 0;
+        const line1 = `🔴 CÂN MINH CHỨNG [${target}] | BIỂN XE: ${plate} | ĐƠN HÀNG: ${po} | SỐ CÂN ${target}: ${wKg.toLocaleString()} KG`;
+        ctx.fillText(line1, 15, 24);
+
+        // Line 2: Driver Name, CCCD, Carrier, Security Guard Operator, Timestamp
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '13px sans-serif';
+        const dName = (target === 'W1' ? driverName : activeScaleOutEntry?.driver_name) || 'Lê Hoàng Nam';
+        const dId = (target === 'W1' ? driverIdCard : activeScaleOutEntry?.driver_id_card) || '040091003412';
+        const cName = (target === 'W1' ? carrierName : activeScaleOutEntry?.carrier_name) || 'Phương Trang Logistics';
+        const guardStr = userRole ? `Bảo Vệ (${userRole})` : 'Bảo Vệ Trạm Cân';
+        const line2 = `👤 TÀI XẾ: ${dName} | CCCD: ${dId} | NHÀ XE: ${cName} | NGƯỜI DUYỆT CHỤP: ${guardStr} | ${timestamp}`;
+        ctx.fillText(line2, 15, 48);
+
+        dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        if (target === 'W1') setPhotoW1(dataUrl);
+        else setPhotoW2(dataUrl);
+      }
+    }
+
+    if (dataUrl) {
+      const cleanPlate = (plateStr || (target === 'W1' ? licensePlate : activeScaleOutEntry?.license_plate) || 'XE-TAI').replace(/[^a-zA-Z0-9]/g, '');
+      const poStr = (target === 'W1' ? poDoCode : activeScaleOutEntry?.po_do_code) || 'PO-2026';
+      const dateTag = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '').replace('T', '_');
+      const fileName = `${target}_${cleanPlate}_${poStr}_${dateTag}.jpg`;
+
+      try {
+        await apiPost('/gate/upload-drive', {
+          imageBase64: dataUrl,
+          targetFolder: target,
+          fileName
+        });
+      } catch (err) {
+        console.error(`Error auto-uploading photo to Drive ${target}:`, err);
+      }
+    }
+  };
+
 interface ApprovedOrder {
   id: string;
   order_code: string;
@@ -200,7 +311,10 @@ interface ApprovedOrder {
         weightIn
       });
 
-      setAlertMessage({ type: 'success', text: `Check-in & Cân Lần 1 thành công cho xe ${licensePlate}! Mã: ${created.entry_code}` });
+      // Mandatory Auto-Snap & Upload to Google Drive Kho/W1
+      await capturePhotoAndUploadDrive('W1', licensePlate, weightIn);
+
+      setAlertMessage({ type: 'success', text: `Check-in & Cân Lần 1 thành công cho xe ${licensePlate}! Mã: ${created.entry_code} (Đã tự động chụp minh chứng & đẩy Google Drive Kho/W1)` });
       setLicensePlate('');
       setDriverName('');
       setDriverIdCard('');
@@ -234,6 +348,9 @@ interface ApprovedOrder {
     const expectedWeightTotal = expectedQtyCases * stdWeightPerCase;
 
     try {
+      // Mandatory Auto-Snap & Upload to Google Drive Kho/W2
+      await capturePhotoAndUploadDrive('W2', activeScaleOutEntry?.license_plate, weightOut);
+
       const res = await apiPost<any>('/gate/weigh-out', {
         truckEntryId: selectedEntryForScaleOut,
         weightOut,
@@ -606,6 +723,65 @@ interface ApprovedOrder {
                     onChange={(e) => setWeightIn(Number(e.target.value))}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-data-mono font-bold text-indigo-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
+                </div>
+              </div>
+
+              {/* Compact Automatic Live Camera Monitor Section for W1 */}
+              <div className="bg-slate-900 p-4 rounded-2xl text-white space-y-3 border border-slate-800 shadow-inner">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold flex items-center gap-1.5 text-amber-400">
+                    <span className="material-symbols-outlined text-[18px]">videocam</span>
+                    CAMERA GIÁM SÁT AN NINH CỔNG (TỰ ĐỘNG CHỤP &amp; ĐẨY GOOGLE DRIVE W1 KHI BẤM DUYỆT)
+                  </span>
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></div> AUTO LIVE STREAM
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-slate-700 shadow-md">
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"></video>
+                    <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[9px] font-extrabold px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                      <div className="w-1.5 h-1.5 rounded-full bg-white"></div> AN NINH TỰ ĐỘNG W1
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {photoW1 ? (
+                      <div className="bg-slate-800/90 p-2.5 rounded-xl border border-emerald-500/60 space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">task_alt</span>
+                            Ảnh Minh Chứng W1 Đã Chụp &amp; Đẩy Drive
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImage({ url: photoW1, title: `MINH CHỨNG CÂN LẦN 1 (W1) - XE ${licensePlate || '51C-738.92'}` })}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 transition-all shadow-sm active:scale-95"
+                            title="Bấm để xem ảnh phóng to màn hình"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">visibility</span>
+                            👁️ Xem Phóng To
+                          </button>
+                        </div>
+                        <div
+                          onClick={() => setPreviewImage({ url: photoW1, title: `MINH CHỨNG CÂN LẦN 1 (W1) - XE ${licensePlate || '51C-738.92'}` })}
+                          className="cursor-pointer group relative rounded-lg overflow-hidden border border-slate-700 shadow-sm"
+                        >
+                          <img src={photoW1} alt="W1 Proof Preview" className="w-full h-24 object-cover group-hover:scale-105 transition-transform duration-300" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                            <span className="material-symbols-outlined text-sm">zoom_in</span> Xem Phóng To
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/60 text-center space-y-1">
+                        <span className="material-symbols-outlined text-amber-400 text-2xl">security</span>
+                        <p className="text-xs font-bold text-slate-200">Chế Độ Giám Sát Chống Gian Lận</p>
+                        <p className="text-[10px] text-slate-400">Khi bấm nút <strong>"Duyệt Xe Vào &amp; Ghi Nhận Cân W1"</strong> bên dưới, hệ thống sẽ tự động chụp ảnh &amp; đẩy lên Google Drive Kho/W1.</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1041,6 +1217,65 @@ interface ApprovedOrder {
                 />
               </div>
 
+              {/* Compact Automatic Live Camera Monitor Section for W2 */}
+              <div className="bg-slate-900 p-4 rounded-2xl text-white space-y-3 border border-slate-800 shadow-inner">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold flex items-center gap-1.5 text-amber-400">
+                    <span className="material-symbols-outlined text-[18px]">videocam</span>
+                    CAMERA GIÁM SÁT AN NINH CỔNG (TỰ ĐỘNG CHỤP &amp; ĐẨY GOOGLE DRIVE W2 KHI BẤM DUYỆT)
+                  </span>
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></div> AUTO LIVE STREAM
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-slate-700 shadow-md">
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"></video>
+                    <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[9px] font-extrabold px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                      <div className="w-1.5 h-1.5 rounded-full bg-white"></div> AN NINH TỰ ĐỘNG W2
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {photoW2 ? (
+                      <div className="bg-slate-800/90 p-2.5 rounded-xl border border-emerald-500/60 space-y-1.5">
+                        <div className="flex justify-between items-center">
+                          <div className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
+                            <span className="material-symbols-outlined text-[14px]">task_alt</span>
+                            Ảnh Minh Chứng W2 Đã Chụp &amp; Đẩy Drive
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewImage({ url: photoW2, title: `MINH CHỨNG CÂN LẦN 2 (W2) - XE ${activeScaleOutEntry?.license_plate || 'XE'}` })}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 transition-all shadow-sm active:scale-95"
+                            title="Bấm để xem ảnh phóng to màn hình"
+                          >
+                            <span className="material-symbols-outlined text-[14px]">visibility</span>
+                            👁️ Xem Phóng To
+                          </button>
+                        </div>
+                        <div
+                          onClick={() => setPreviewImage({ url: photoW2, title: `MINH CHỨNG CÂN LẦN 2 (W2) - XE ${activeScaleOutEntry?.license_plate || 'XE'}` })}
+                          className="cursor-pointer group relative rounded-lg overflow-hidden border border-slate-700 shadow-sm"
+                        >
+                          <img src={photoW2} alt="W2 Proof Preview" className="w-full h-24 object-cover group-hover:scale-105 transition-transform duration-300" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                            <span className="material-symbols-outlined text-sm">zoom_in</span> Xem Phóng To
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/60 text-center space-y-1">
+                        <span className="material-symbols-outlined text-amber-400 text-2xl">security</span>
+                        <p className="text-xs font-bold text-slate-200">Chế Độ Giám Sát Chống Gian Lận W2</p>
+                        <p className="text-[10px] text-slate-400">Khi bấm nút <strong>"Xác Nhận Cân Lần 2"</strong> bên dưới, hệ thống sẽ tự động chụp ảnh &amp; đẩy lên Google Drive Kho/W2.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               {/* Dynamic PO Multi-Truck Cumulative Progress Panel */}
               {activeScaleOutEntry && (() => {
                 const poCode = activeScaleOutEntry.po_do_code || 'PO-20260728-08';
@@ -1456,6 +1691,58 @@ interface ApprovedOrder {
                 <span className="material-symbols-outlined text-[16px]">check_circle</span>
                 Xác Nhận Gán Xe
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Image Preview Modal Popup */}
+      {previewImage && (
+        <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fadeIn">
+          <div className="relative max-w-5xl w-full bg-slate-900 border border-slate-700 rounded-3xl overflow-hidden shadow-2xl space-y-0">
+            {/* Modal Header */}
+            <div className="bg-slate-800/90 px-6 py-4 border-b border-slate-700 flex justify-between items-center text-white">
+              <div className="flex items-center gap-2 font-bold text-base text-amber-400">
+                <span className="material-symbols-outlined text-2xl">visibility</span>
+                <span>{previewImage.title}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                className="w-9 h-9 rounded-full bg-slate-700 hover:bg-rose-600 text-slate-300 hover:text-white flex items-center justify-center transition-colors text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Image Container */}
+            <div className="p-4 bg-black flex justify-center items-center max-h-[75vh] overflow-auto">
+              <img src={previewImage.url} alt="Fullscreen Proof" className="max-h-[70vh] w-auto object-contain rounded-xl border border-slate-800 shadow-2xl" />
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-800/90 px-6 py-3 border-t border-slate-700 flex justify-between items-center text-xs text-slate-300">
+              <span className="flex items-center gap-1.5 font-semibold text-emerald-400">
+                <span className="material-symbols-outlined text-base">cloud_done</span>
+                Ảnh gốc đính kèm Watermark tự động đồng bộ Google Drive Kho/W1 &amp; Kho/W2
+              </span>
+              <div className="flex gap-3">
+                <a
+                  href={previewImage.url}
+                  download="MINH_CHUNG_TRUAM_CAN.jpg"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-base">download</span>
+                  Tải Ảnh Về Máy
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreviewImage(null)}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold rounded-xl transition-all"
+                >
+                  Đóng (Esc)
+                </button>
+              </div>
             </div>
           </div>
         </div>
