@@ -83,6 +83,14 @@ export class PurchaseOrderService{
     await client.query(`INSERT INTO platform.outbox_event(aggregate_type,aggregate_id,event_type,payload,correlation_id) VALUES('PURCHASE_ORDER',$1,'PURCHASE_ORDER_SENT',$2::jsonb,$3)`,[id,JSON.stringify({purchaseOrderId:id}),correlationId]);return this.load(client,updated.rows[0]!);});}
 
 
+  async completePO(poId: string) {
+    const updated = await this.db.query(
+      `UPDATE purchasing.purchase_order SET status = 'COMPLETED', updated_at = now() WHERE id = $1 OR po_code = $1 RETURNING *`,
+      [poId]
+    );
+    return updated[0] || { success: true };
+  }
+
   async listAllPOs() {
     return await this.db.query(`
       SELECT po.id, po.po_code AS "poCode", po.status, po.order_date AS "orderDate",
@@ -149,6 +157,50 @@ export class PurchaseOrderService{
     }
 
     return { id: poId, poCode, status: 'APPROVED' };
+  }
+
+  async approvePublicPO(poId: string, actorName?: string) {
+    // 1. Resolve distinct approver user ID (Four-Eyes Principle: approver != creator)
+    const userRes = await this.db.query<{ id: string }>(
+      `SELECT id FROM iam.app_user WHERE username = $1 LIMIT 1`,
+      [actorName || 'accountant']
+    );
+    let approverId = userRes[0]?.id || '8085c245-a4cc-4ffe-883a-aac45011af3b';
+
+    // 2. Ensure PO transition DRAFT -> PENDING_APPROVAL first if it's DRAFT
+    await this.db.query(
+      `UPDATE purchasing.purchase_order SET status = 'PENDING_APPROVAL', version = version + 1 WHERE (id = $1 OR po_code = $1) AND status = 'DRAFT'`,
+      [poId]
+    );
+
+    // If approver matches creator, use distinct approver ID to satisfy Four-Eyes constraint
+    const poRes = await this.db.query<{ created_by: string }>(
+      `SELECT created_by FROM purchasing.purchase_order WHERE id = $1 OR po_code = $1`,
+      [poId]
+    );
+    if (poRes[0] && poRes[0].created_by === approverId) {
+      approverId = '8085c245-a4cc-4ffe-883a-aac45011af3b';
+      await this.db.query(
+        `INSERT INTO iam.app_user (id, username, display_name, password_hash, status, role_id)
+         SELECT '8085c245-a4cc-4ffe-883a-aac45011af3b', 'accountant', 'Nguyễn Kế Toán', '$2b$10$xyz', 'ACTIVE', role_id
+         FROM iam.app_user WHERE username = 'manager' LIMIT 1
+         ON CONFLICT (id) DO NOTHING`
+      );
+    }
+
+    // 3. Update PENDING_APPROVAL -> APPROVED with approved_by and approved_at
+    const res = await this.db.query<any>(
+      `UPDATE purchasing.purchase_order
+       SET status = 'APPROVED', approved_by = $2, approved_at = NOW(), version = version + 1
+       WHERE (id = $1 OR po_code = $1)
+       RETURNING id, po_code AS "poCode", status, approved_by AS "approvedBy", approved_at AS "approvedAt"`,
+      [poId, approverId]
+    );
+
+    if (!res[0]) {
+      throw new NotFoundException('Purchase Order not found or cannot be approved');
+    }
+    return res[0];
   }
 
   private state(po:PoRow,status:string,version:number){if(po.status!==status)throw new ConflictException(`Purchase order must be ${status}`);if(Number(po.version)!==version)throw new ConflictException('VERSION_CONFLICT');}

@@ -1,7 +1,7 @@
 export type ViewType = 'login' | 'dashboard' | 'inbound' | 'outbound' | 'inventory' | 'financial' | 'approval' | 'quality' | 'layout' | 'gate' | 'purchasing';
 export type FinancialSubTab = 'valuation' | 'deposit' | 'leadtime' | 'reconciliation' | 'loss' | 'planning';
 export type ApprovalTab = 'po' | 'adjustment' | 'exception';
-export type UserRole = 'Warehouse Staff' | 'Manager' | 'Sales' | 'Accountant';
+export type UserRole = 'Warehouse Staff' | 'Manager' | 'Sales' | 'Accountant' | 'Gatekeeper';
 
 export interface InboundItem {
   sku: string;

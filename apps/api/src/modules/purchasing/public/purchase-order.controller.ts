@@ -18,6 +18,21 @@ export class PurchaseOrderController {
     return this.service.createPublicPO(body);
   }
 
+  @Post(':id/approve-public')
+  approvePublic(@Param('id') poId: string, @Body() body: any) {
+    return this.service.approvePublicPO(poId, body?.actorName);
+  }
+
+  @Post(':id/approve')
+  approve(@Headers('x-actor-id') actor: string | undefined, @Param('id') poId: string) {
+    return this.service.approvePublicPO(poId);
+  }
+
+  @Post(':id/complete')
+  completePO(@Param('id') poId: string) {
+    return this.service.completePO(poId);
+  }
+
   @Get(':id')
   find(@Headers('x-actor-id') actor: string | undefined, @Param('id') poId: string) {
     return this.service.findOne(id(actor || '00000000-0000-0000-0000-000000000001', 'actorId'), id(poId, 'purchaseOrderId'));

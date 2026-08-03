@@ -127,23 +127,86 @@ export function LoginView({
           </button>
         </form>
 
-        {/* Demo Helper Block */}
-        <div className="mt-2 bg-surface-container rounded-lg p-3 text-[12px] text-on-surface-variant flex flex-col gap-1 border border-outline-variant border-dashed">
-          <span className="font-bold text-secondary flex items-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">info</span>
-            Tài khoản Bãi Kho Tập Trung CITARES (Mật khẩu: 123456 hoặc WmsDemo2026!)
-          </span>
-          <div className="flex flex-col gap-1.5 mt-1">
-            <div><span className="font-semibold text-primary">• Quản Lý Bãi Kho:</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded text-[11px]">manager</code></div>
-            <div className="border-t border-outline-variant pt-1 text-[11px]">
-              <span className="font-semibold text-indigo-700">• Bảo Vệ Cổng &amp; Trạm Cân:</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">gatekeeper</code>
-            </div>
-            <div className="border-t border-outline-variant pt-1 text-[11px]">
-              <span className="font-semibold text-emerald-700">• Thủ Kho Bãi Tập Trung:</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">storekeeper</code>
-            </div>
-            <div className="border-t border-outline-variant pt-1 text-[11px]">
-              <span className="font-semibold text-secondary">• Kế Toán &amp; Bán Hàng:</span> <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">accountant_a</code> / <code className="font-data-mono bg-surface-bright px-1 py-0.5 rounded">sales_a</code>
-            </div>
+        {/* Demo Helper & Quick Login Pills */}
+        <div className="mt-2 bg-slate-900 text-slate-100 rounded-xl p-3.5 text-xs flex flex-col gap-2.5 shadow-md border border-slate-800">
+          <div className="font-bold text-amber-400 flex items-center justify-between">
+            <span className="flex items-center gap-1">
+              <span className="material-symbols-outlined text-[16px]">bolt</span>
+              ⚡ DEV QUICK LOGIN (1-CLICK ĐĂNG NHẬP NHANH):
+            </span>
+            <span className="text-[10px] text-slate-400 font-normal">Pass: WmsDemo2026!</span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 font-bold">
+            <button
+              type="button"
+              onClick={() => {
+                setUsername('gatekeeper');
+                setPassword('WmsDemo2026!');
+                setTimeout(() => {
+                  const form = document.querySelector('form');
+                  if (form) form.requestSubmit();
+                }, 50);
+              }}
+              className="bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-200 border border-slate-700 py-1.5 px-2 rounded-lg transition-all text-left flex items-center gap-1 shadow-xs"
+            >
+              <span>🛡️ Gatekeeper</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUsername('storekeeper');
+                setPassword('WmsDemo2026!');
+                setTimeout(() => {
+                  const form = document.querySelector('form');
+                  if (form) form.requestSubmit();
+                }, 50);
+              }}
+              className="bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-200 border border-slate-700 py-1.5 px-2 rounded-lg transition-all text-left flex items-center gap-1 shadow-xs"
+            >
+              <span>📦 Storekeeper</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUsername('sales');
+                setPassword('WmsDemo2026!');
+                setTimeout(() => {
+                  const form = document.querySelector('form');
+                  if (form) form.requestSubmit();
+                }, 50);
+              }}
+              className="bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-200 border border-slate-700 py-1.5 px-2 rounded-lg transition-all text-left flex items-center gap-1 shadow-xs"
+            >
+              <span>💼 Sales</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUsername('accountant');
+                setPassword('WmsDemo2026!');
+                setTimeout(() => {
+                  const form = document.querySelector('form');
+                  if (form) form.requestSubmit();
+                }, 50);
+              }}
+              className="bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-200 border border-slate-700 py-1.5 px-2 rounded-lg transition-all text-left flex items-center gap-1 shadow-xs"
+            >
+              <span>💵 Accountant</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUsername('manager');
+                setPassword('WmsDemo2026!');
+                setTimeout(() => {
+                  const form = document.querySelector('form');
+                  if (form) form.requestSubmit();
+                }, 50);
+              }}
+              className="bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-200 border border-slate-700 py-1.5 px-2 rounded-lg transition-all text-left flex items-center gap-1 shadow-xs"
+            >
+              <span>👔 Manager</span>
+            </button>
           </div>
         </div>
       </div>

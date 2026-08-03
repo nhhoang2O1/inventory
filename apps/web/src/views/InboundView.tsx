@@ -132,6 +132,54 @@ export function InboundView({
     }
   };
 
+  const [dockTrucks, setDockTrucks] = React.useState<any[]>([]);
+  const [dockConfirmMsg, setDockConfirmMsg] = React.useState<string | null>(null);
+  const [truckQtyInputs, setTruckQtyInputs] = React.useState<Record<string, number>>({});
+
+  const fetchDockTrucks = async () => {
+    try {
+      const res = await fetch('/api/v1/gate/entries');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setDockTrucks(
+          data.filter(
+            (e: any) =>
+              Boolean(e.dock_code || e.dock_location_id) &&
+              (e.status === 'LOADING' || e.status === 'DOCK_RECEIVED')
+          )
+        );
+      }
+    } catch (e) {
+      console.error('Failed to fetch dock trucks for Storekeeper:', e);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchDockTrucks();
+  }, []);
+
+  const handleStorekeeperConfirmDock = async (truckEntryId: string, confirmedQtyCases?: number) => {
+    try {
+      const res = await fetch('/api/v1/gate/confirm-dock-receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ truckEntryId, confirmedQtyCases })
+      });
+      if (res.ok) {
+        const msg = confirmedQtyCases
+          ? `🟢 ĐÃ XÁC NHẬN THỦ KHO: Đã kiểm đếm & hạ ${confirmedQtyCases} thùng cho xe này! Bảo vệ trạm cân có thể cân W2 và mở cổng xuất xe.`
+          : '🟢 ĐÃ XÁC NHẬN THỦ KHO: Đã kiểm đếm & nhận đủ hàng tại Dock! Bảo vệ tại trạm cân cổng ra có thể cho xe lên Cân W2 và xuất cổng.';
+        setDockConfirmMsg(msg);
+        fetchDockTrucks();
+      } else {
+        const err = await res.json();
+        alert(err.message || 'Lỗi khi xác nhận nhận hàng');
+      }
+    } catch (e: any) {
+      alert('Lỗi kết nối khi xác nhận nhận hàng');
+    }
+  };
+
   const isManager = !userRole || userRole.toUpperCase().includes('MANAGER') || userRole.toLowerCase().includes('manager');
 
   return (
@@ -171,6 +219,165 @@ export function InboundView({
             ĐANG THỰC HIỆN
           </span>
         </div>
+      </div>
+
+      {/* Dock Operations Banner for Storekeeper */}
+      <div className="bg-indigo-50/90 border border-indigo-200 p-4 rounded-xl shadow-sm space-y-3">
+        <div className="flex justify-between items-center border-b border-indigo-200 pb-2">
+          <h3 className="text-sm font-bold text-indigo-950 flex items-center gap-2">
+            <span className="material-symbols-outlined text-indigo-700">move_location</span>
+            DANH SÁCH XE ĐANG HẠ HÀNG TẠI DOCK (DÀNH CHO THỦ KHO KIỂM ĐẾM &amp; XÁC NHẬN)
+          </h3>
+          <span className="bg-indigo-200 text-indigo-900 font-extrabold text-[10px] px-2 py-0.5 rounded uppercase">
+            {dockTrucks.length} XE TẠI DOCK
+          </span>
+        </div>
+
+        {dockConfirmMsg && (
+          <div className="bg-emerald-100 text-emerald-950 p-2.5 rounded border border-emerald-300 font-bold text-xs flex items-center gap-2">
+            <span className="material-symbols-outlined text-emerald-700">verified</span>
+            {dockConfirmMsg}
+          </div>
+        )}
+
+        {dockTrucks.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {dockTrucks.map(truck => {
+              const isConfirmed = truck.storekeeper_confirmed || truck.status === 'DOCK_RECEIVED';
+              const skuLines: any[] = Array.isArray(truck.po_sku_lines) ? truck.po_sku_lines : [];
+              const totalExpectedKg = skuLines.reduce((sum, l) => sum + Number(l.lineWeightKg || 0), 0);
+              const totalOrderedCases = skuLines.reduce((sum, l) => sum + Number(l.orderedQty || 0), 0);
+              const weightInKg = Number(truck.weight_in || 0);
+
+              // Detect multi-truck for the same PO
+              const poCode = truck.po_do_code;
+              const samePoTrucks = dockTrucks.filter(t => poCode && t.po_do_code === poCode);
+              const isMultiTruck = samePoTrucks.length > 1;
+              const truckIndex = samePoTrucks.findIndex(t => t.id === truck.id) + 1;
+
+              const defaultAllocatedCases = isMultiTruck
+                ? Math.round(totalOrderedCases / samePoTrucks.length)
+                : (totalOrderedCases || 400);
+              const currentInputQty = truckQtyInputs[truck.id] ?? defaultAllocatedCases;
+              const unitWeightKg = skuLines[0]?.unitWeightKg || 8.5;
+              const calculatedTruckWeightKg = currentInputQty * unitWeightKg;
+
+              return (
+                <div key={truck.id} className="bg-white p-3.5 rounded-xl border border-indigo-200 shadow-sm space-y-2.5 text-xs">
+                  <div className="flex justify-between items-center font-bold font-data-mono">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-indigo-900 text-sm font-extrabold">{truck.po_do_code || 'PO-20260728-08'}</span>
+                      {isMultiTruck && (
+                        <span className="bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-md text-[10px] font-extrabold flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px]">local_shipping</span>
+                          Xe {truckIndex}/{samePoTrucks.length}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">{truck.license_plate}</span>
+                  </div>
+
+                  {isMultiTruck && (
+                    <div className="bg-amber-50/90 border border-amber-200/80 p-2 rounded-lg text-[11px] text-amber-950 flex items-center gap-1.5 font-semibold">
+                      <span className="material-symbols-outlined text-amber-600 text-[14px]">info</span>
+                      <span>Đoàn {samePoTrucks.length} xe giao cho Đơn [{poCode}]. Đây là <strong>Xe số {truckIndex}/{samePoTrucks.length}</strong>.</span>
+                    </div>
+                  )}
+                  <div className="text-slate-700 space-y-1.5 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Tài xế:</span>
+                      <strong className="text-slate-900">{truck.driver_name}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Cửa Dock:</span>
+                      <strong className="text-indigo-700 font-data-mono font-bold">{truck.dock_code || truck.dock_location_id || 'DOCK-01'}</strong>
+                    </div>
+                    <div className="flex justify-between border-t border-slate-200/60 pt-1">
+                      <span className="text-slate-500">Tổng Đơn PO Khai Báo:</span>
+                      <strong className="text-primary font-bold">{skuLines.length > 0 ? `${skuLines.length} SKU (${totalOrderedCases.toLocaleString()} thùng)` : '1 SKU (400 thùng)'}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600 font-semibold">Tải Trọng Dự Kiến Cả Đơn:</span>
+                      <strong className="text-emerald-700 font-data-mono font-bold">
+                        {totalExpectedKg > 0 ? `${totalExpectedKg.toLocaleString('vi-VN')} kg (${(totalExpectedKg / 1000).toFixed(2)} Tấn)` : '3,400 kg (3.40 Tấn)'}
+                      </strong>
+                    </div>
+                    {weightInKg > 0 && (
+                      <div className="flex justify-between border-t border-slate-200/60 pt-1">
+                        <span className="text-slate-500">Trọng lượng đè cân vào ($W_1$):</span>
+                        <strong className="text-slate-900 font-data-mono">{weightInKg.toLocaleString()} kg</strong>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Input field for Storekeeper to specify exact cases unloaded by THIS TRUCK */}
+                  {!isConfirmed && (
+                    <div className="bg-emerald-50/80 border border-emerald-200 p-2.5 rounded-lg space-y-2 text-xs">
+                      <div className="flex justify-between items-center">
+                        <label className="font-bold text-emerald-950 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[15px] text-emerald-700">edit_note</span>
+                          Số lượng xe này thực hạ xuống Dock:
+                        </label>
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            value={currentInputQty}
+                            onChange={(e) => setTruckQtyInputs({ ...truckQtyInputs, [truck.id]: Math.max(1, Number(e.target.value)) })}
+                            className="w-20 px-2 py-1 bg-white font-data-mono font-extrabold text-sm text-indigo-950 border border-emerald-300 rounded text-center focus:ring-2 focus:ring-emerald-500 shadow-2xs"
+                          />
+                          <span className="font-bold text-slate-700">thùng</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-emerald-900 border-t border-emerald-200/60 pt-1.5 font-semibold">
+                        <span>Tải trọng tương ứng xe này ({currentInputQty} thùng):</span>
+                        <strong className="font-data-mono text-emerald-800">{calculatedTruckWeightKg.toLocaleString()} kg ({(calculatedTruckWeightKg / 1000).toFixed(2)} Tấn)</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SKU Breakdown list if available */}
+                  {skuLines.length > 0 && (
+                    <div className="bg-indigo-50/60 border border-indigo-100 rounded-lg p-2.5 space-y-1.5 text-[11px]">
+                      <div className="font-bold text-indigo-950 flex items-center gap-1 border-b border-indigo-200/50 pb-1">
+                        <span className="material-symbols-outlined text-[14px] text-indigo-600">inventory_2</span>
+                        Chi Tiết Quy Đổi Trọng Lượng Theo Từng SKU:
+                      </div>
+                      {skuLines.map((line: any, idx: number) => (
+                        <div key={idx} className="flex flex-col sm:flex-row sm:justify-between text-slate-800 gap-0.5">
+                          <span>• <strong>{line.skuName || line.skuCode}</strong></span>
+                          <span className="font-data-mono font-semibold text-slate-900">
+                            {line.orderedQty} thùng × {line.unitWeightKg} kg = <span className="text-indigo-900 font-bold">{Number(line.lineWeightKg).toLocaleString()} kg</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="pt-1 flex justify-between items-center">
+                    {isConfirmed ? (
+                      <span className="w-full justify-center bg-emerald-100 text-emerald-900 text-[11px] font-extrabold py-2 px-3 rounded-lg border border-emerald-300 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px]">verified</span>
+                        🟢 Đã Xác Nhận Hạ Hàng Tại Dock {truck.storekeeper_notes ? `(${truck.storekeeper_notes})` : ''}
+                      </span>
+                    ) : (
+                      <button
+                        onClick={() => handleStorekeeperConfirmDock(truck.id, currentInputQty)}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-sm active:scale-[0.99]"
+                      >
+                        <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                        [Thủ Kho] Xác Nhận Đã Hạ {currentInputQty} Thùng Của Xe Này
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-xs text-slate-500 italic text-center py-2">
+            Hiện chưa có xe nào đỗ tại Dock chờ Thủ kho kiểm đếm.
+          </div>
+        )}
       </div>
 
       {error && (

@@ -53,7 +53,15 @@ interface ProductCatalogItem {
   name: string;
 }
 
-export function PurchasingView() {
+interface PurchasingViewProps {
+  userRole?: string;
+}
+
+export function PurchasingView({ userRole }: PurchasingViewProps) {
+  const normRole = (userRole || '').toUpperCase();
+  const isManager = !userRole || normRole.includes('MANAGER') || normRole.includes('QUẢN LÝ');
+  const isAccountant = normRole.includes('ACCOUNTANT') || normRole.includes('KẾ TOÁN');
+  const canApprovePO = isManager || isAccountant;
   const [activeTab, setActiveTab] = useState<'polist' | 'createpo' | 'suppliers' | 'calendar'>('polist');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
@@ -118,6 +126,23 @@ export function PurchasingView() {
     fetchOrders();
     fetchProductsCatalog();
   }, []);
+
+  const handleApprovePO = async (orderId: string) => {
+    // 1. Update React state immediately for instant UI feedback
+    setOrders(prev => prev.map(o => (o.id === orderId || o.poCode === orderId) ? { ...o, status: 'APPROVED' } : o));
+    if (selectedPoForModal && (selectedPoForModal.id === orderId || selectedPoForModal.poCode === orderId)) {
+      setSelectedPoForModal({ ...selectedPoForModal, status: 'APPROVED' });
+    }
+    setAlertMessage({ type: 'success', text: `🟢 ĐÃ PHÊ DUYỆT THÀNH CÔNG: Đơn PO ${orderId} đã chuyển trạng thái sang APPROVED (AVAILABLE AT GATE).` });
+
+    // 2. Persist to PostgreSQL database via API
+    try {
+      await apiPost(`/purchase-orders/${orderId}/approve-public`, { actorName: userRole });
+      fetchOrders();
+    } catch (err: any) {
+      console.error('API Approve Error:', err);
+    }
+  };
 
   const selectedSupplier = suppliers.find(s => s.id === selectedSupplierId);
 
@@ -226,6 +251,25 @@ export function PurchasingView() {
   };
 
   const totalCases = poLines.reduce((acc, curr) => acc + Number(curr.orderedQty || 0), 0);
+
+  const handleCompletePO = async (poId: string) => {
+    if (!window.confirm('🔒 Bạn có chắc chắn muốn chốt HOÀN THÀNH ĐƠN PO NÀY? Đơn PO sẽ đổi trạng thái thành COMPLETED và tự động ẨN khỏi Trạm Cân Cổng.')) {
+      return;
+    }
+    try {
+      await apiPost(`/purchase-orders/${poId}/complete`, {});
+      setAlertMessage({
+        type: 'success',
+        text: '🔒 ĐÃ HOÀN THÀNH ĐƠN PO THÀNH CÔNG! Đơn đã được đóng và tự động ẩn khỏi danh sách chọn xe tại Cổng Trạm Cân.'
+      });
+      fetchOrders();
+    } catch (err: any) {
+      setAlertMessage({
+        type: 'error',
+        text: err.message || 'Lỗi khi chốt hoàn thành đơn PO'
+      });
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -368,20 +412,52 @@ export function PurchasingView() {
                       <td className="p-3 font-data-mono font-bold text-emerald-700">{new Date(order.expectedDeliveryDate).toLocaleDateString('vi-VN')}</td>
                       <td className="p-3">
                         <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                          order.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-800'
+                          order.status === 'APPROVED' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                          order.status === 'COMPLETED' ? 'bg-blue-100 text-blue-900 border border-blue-300' : 'bg-amber-100 text-amber-800'
                         }`}>
-                          {order.status === 'APPROVED' ? 'ĐÃ PHÊ DUYỆT (AVAILABLE AT GATE)' : 'CHỜ DUYỆT'}
+                          {order.status === 'APPROVED' ? '🟢 ĐÃ PHÊ DUYỆT (AVAILABLE AT GATE)' :
+                           order.status === 'COMPLETED' ? '🏁 ĐÃ HOÀN THÀNH (ĐÃ ẨN KHỎI CỔNG)' : '🟡 CHỜ DUYỆT'}
                         </span>
                       </td>
                       <td className="p-3 text-right">
-                        <button
-                          onClick={() => setSelectedPoForModal(order)}
-                          className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-900 border border-indigo-200 font-bold px-3 py-1.5 rounded-xl transition-all text-xs inline-flex items-center gap-1.5 shadow-sm active:scale-95"
-                          title="Xem chi tiết các mặt hàng SKU đặt mua"
-                        >
-                          <span className="material-symbols-outlined text-base text-indigo-600">visibility</span>
-                          <span>Xem Chi Tiết ({order.lines?.length || 0} SKU)</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          {canApprovePO && order.status !== 'APPROVED' && order.status !== 'COMPLETED' && (
+                            <button
+                              onClick={() => handleApprovePO(order.id)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-xl transition-all text-xs inline-flex items-center gap-1 shadow-sm active:scale-95"
+                              title="Phê duyệt đơn PO này để cho phép xe vào Cổng & Trạm Cân"
+                            >
+                              <span className="material-symbols-outlined text-base">check_circle</span>
+                              <span>Phê Duyệt PO</span>
+                            </button>
+                          )}
+                          {order.status === 'APPROVED' && (
+                            <button
+                              onClick={() => handleCompletePO(order.id)}
+                              className="bg-slate-700 hover:bg-slate-800 text-white font-bold px-2.5 py-1.5 rounded-xl transition-all text-xs inline-flex items-center gap-1 shadow-sm active:scale-95"
+                              title="Chốt hoàn thành đơn PO để tự động ẩn khỏi Trạm Cân Cổng"
+                            >
+                              <span className="material-symbols-outlined text-sm">lock</span>
+                              <span>Chốt Hoàn Thành PO</span>
+                            </button>
+                          )}
+                          <button
+                            onClick={() => window.open(`/api/v1/gate/reports/po/${order.poCode}/pdf`, '_blank')}
+                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold px-2.5 py-1.5 rounded-xl transition-all text-xs inline-flex items-center gap-1 border border-indigo-200 shadow-2xs active:scale-95"
+                            title="Tải/Xem Báo Cáo PDF Quyết Toán Đơn PO"
+                          >
+                            <span className="material-symbols-outlined text-sm text-rose-600">picture_as_pdf</span>
+                            <span>Báo Cáo PDF</span>
+                          </button>
+                          <button
+                            onClick={() => setSelectedPoForModal(order)}
+                            className="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 hover:text-indigo-900 border border-indigo-200 font-bold px-3 py-1.5 rounded-xl transition-all text-xs inline-flex items-center gap-1.5 shadow-sm active:scale-95"
+                            title="Xem chi tiết các mặt hàng SKU đặt mua"
+                          >
+                            <span className="material-symbols-outlined text-base text-indigo-600">visibility</span>
+                            <span>Xem Chi Tiết ({order.lines?.length || 0} SKU)</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -833,7 +909,17 @@ export function PurchasingView() {
             </div>
 
             {/* Modal Footer */}
-            <div className="bg-slate-100 p-4 border-t flex justify-end">
+            <div className="bg-slate-100 p-4 border-t flex justify-end gap-3">
+              {canApprovePO && selectedPoForModal.status !== 'APPROVED' && (
+                <button
+                  type="button"
+                  onClick={() => handleApprovePO(selectedPoForModal.id)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2 rounded-xl shadow transition-all text-xs flex items-center gap-1.5 active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-base">check_circle</span>
+                  Phê Duyệt Đơn PO Này
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setSelectedPoForModal(null)}

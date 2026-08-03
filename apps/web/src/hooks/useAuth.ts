@@ -1,6 +1,25 @@
 import { useState, useEffect } from 'react';
 import { UserRole, ViewType } from '../types';
 
+export function resolveRoleFromUsernameAndSavedRole(username?: string, savedRole?: string): UserRole {
+  const u = (username || '').toLowerCase();
+  if (u.includes('gate')) return 'Gatekeeper';
+  if (u.includes('storekeeper') || u.includes('thukho')) return 'Warehouse Staff';
+  if (u.includes('accountant') || u.includes('ketoan')) return 'Accountant';
+  if (u.includes('sales') || u.includes('banhang')) return 'Sales';
+  if (u.includes('manager') || u.includes('quanly')) return 'Manager';
+  return (savedRole as UserRole) || 'Manager';
+}
+
+export function getDefaultViewForRole(role?: string): ViewType {
+  const normalized = (role || '').toUpperCase();
+  if (normalized.includes('GATE') || normalized.includes('BẢO VỆ')) return 'gate';
+  if (normalized.includes('STAFF') || normalized.includes('STORE') || normalized.includes('THỦ KHO')) return 'inbound';
+  if (normalized.includes('SALE') || normalized.includes('BÁN HÀNG')) return 'inventory';
+  if (normalized.includes('ACCOUNTANT') || normalized.includes('KẾ TOÁN')) return 'financial';
+  return 'dashboard';
+}
+
 export function useAuth() {
   const [view, setView] = useState<ViewType>('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -11,9 +30,30 @@ export function useAuth() {
   const [userId, setUserId] = useState('');
   const [username, setUsername] = useState('manager');
   const [password, setPassword] = useState('WmsDemo2026!');
-  const [userRole, setUserRole] = useState<UserRole>('Manager');
+  const [userRole, setUserRoleState] = useState<UserRole>('Manager');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const setUserRole = (role: UserRole) => {
+    setUserRoleState(role);
+    localStorage.setItem('userRole', role);
+    const defaultView = getDefaultViewForRole(role);
+    setView(defaultView);
+  };
+
+  const quickSwitchRole = (role: UserRole) => {
+    const roleUsernameMap: Record<UserRole, string> = {
+      'Gatekeeper': 'gatekeeper',
+      'Warehouse Staff': 'storekeeper',
+      'Sales': 'sales',
+      'Accountant': 'accountant',
+      'Manager': 'manager'
+    };
+    const targetUsername = roleUsernameMap[role] || 'manager';
+    setUsername(targetUsername);
+    localStorage.setItem('username', targetUsername);
+    setUserRole(role);
+  };
 
   // Restore session from localStorage on initial load
   useEffect(() => {
@@ -30,7 +70,9 @@ export function useAuth() {
       setIsLoggedIn(true);
       setUserId(savedUserId);
       if (savedUsername) setUsername(savedUsername);
-      if (savedRole) setUserRole(savedRole as UserRole);
+      const effectiveRole = resolveRoleFromUsernameAndSavedRole(savedUsername || '', savedRole || '');
+      setUserRoleState(effectiveRole);
+      localStorage.setItem('userRole', effectiveRole);
       if (savedWarehouses) {
         try {
           const parsed = JSON.parse(savedWarehouses);
@@ -49,7 +91,7 @@ export function useAuth() {
       if (savedWarehouseId) setSelectedWarehouseId(savedWarehouseId);
       if (savedWarehouseCode) setSelectedWarehouseCode(savedWarehouseCode);
       if (savedWarehouseName) setSelectedWarehouse(savedWarehouseName);
-      setView('dashboard');
+      setView(getDefaultViewForRole(effectiveRole));
     }
   }, []);
 
@@ -108,7 +150,8 @@ export function useAuth() {
 
       // Login successful
       setIsLoggedIn(true);
-      setUserRole(data.userRole as UserRole);
+      const role = (data.userRole as UserRole) || 'Manager';
+      setUserRoleState(role);
       setUserId(data.userId || '');
       setWarehouses(data.warehouses || []);
 
@@ -124,7 +167,7 @@ export function useAuth() {
         localStorage.setItem('selectedWarehouseId', whId);
         localStorage.setItem('selectedWarehouseCode', whCode);
       }
-      setView('dashboard');
+      setView(getDefaultViewForRole(role));
     } catch (err: any) {
       setLoginError(err.message || 'Đã xảy ra lỗi khi kết nối đến máy chủ.');
     } finally {
@@ -181,6 +224,7 @@ export function useAuth() {
     setPassword,
     userRole,
     setUserRole,
+    quickSwitchRole,
     loginError,
     isLoading,
     handleLogin,

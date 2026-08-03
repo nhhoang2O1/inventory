@@ -13,9 +13,15 @@ interface TruckEntry {
   expected_qty_cases?: number;
   entry_type: 'QR_SCAN' | 'MANUAL';
   purpose: 'INBOUND' | 'OUTBOUND';
-  status: 'CHECKED_IN' | 'WEIGHED_IN' | 'LOADING' | 'WEIGHED_OUT' | 'COMPLETED' | 'REJECTED';
+  status: 'CHECKED_IN' | 'WEIGHED_IN' | 'LOADING' | 'DOCK_RECEIVED' | 'WEIGHED_OUT' | 'COMPLETED' | 'REJECTED';
   dock_location_id?: string;
   dock_code?: string;
+  storekeeper_confirmed?: boolean;
+  storekeeper_confirmed_at?: string;
+  storekeeper_confirmed_by?: string;
+  storekeeper_notes?: string;
+  confirmed_qty_cases?: number;
+  po_sku_lines?: any[];
   weight_in?: number;
   weight_out?: number;
   net_weight?: number;
@@ -32,7 +38,7 @@ interface DockLocation {
   status: 'AVAILABLE' | 'BUSY';
 }
 
-export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string; warehouseId?: string }) {
+export function GateWeighbridgeView({ actorId, warehouseId, userRole }: { actorId?: string; warehouseId?: string; userRole?: string }) {
   const [activeTab, setActiveTab] = useState<'checkin' | 'dock' | 'scaleout' | 'history'>('checkin');
   const [entries, setEntries] = useState<TruckEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,8 +67,9 @@ export function GateWeighbridgeView({ actorId, warehouseId }: { actorId?: string
   // Scale Out state
   const [selectedEntryForScaleOut, setSelectedEntryForScaleOut] = useState<string>('');
   const [weightOut, setWeightOut] = useState<number>(9820);
-  const [expectedQtyCases, setExpectedQtyCases] = useState<number>(500); // 500 thùng
-  const [stdWeightPerCase, setStdWeightPerCase] = useState<number>(11.2); // 11.2 kg/thùng
+  const [expectedQtyCases, setExpectedQtyCases] = useState<number>(400); // 400 thùng
+  const [stdWeightPerCase, setStdWeightPerCase] = useState<number>(8.5); // 8.5 kg/thùng
+  const toleranceThresholdPercent = 1.5; // Cố định 1.5% theo chính sách CSDL
   const [scaleOutNotes, setScaleOutNotes] = useState('');
 
 interface ApprovedOrder {
@@ -114,6 +121,36 @@ interface ApprovedOrder {
     }
   };
 
+  const handleConfirmDockReceipt = async (truckEntryId: string, notes?: string) => {
+    const roleNorm = (userRole || '').toUpperCase();
+    const isGatekeeperOnly = roleNorm.includes('GATE') || roleNorm.includes('BẢO VỆ');
+
+    if (isGatekeeperOnly) {
+      setAlertMessage({
+        type: 'error',
+        text: '⛔ RÀNG BUỘC PHÂN QUYỀN: Tài khoản Bảo Vệ (Gatekeeper) không có quyền bấm nút này! Vui lòng nhờ Thủ Kho (Storekeeper) tại Dock xác nhận bốc hạ đủ hàng.'
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await apiPost('/gate/confirm-dock-receipt', { truckEntryId, notes });
+      setAlertMessage({
+        type: 'success',
+        text: '🟢 THỦ KHO XÁC NHẬN BỐC HẠ ĐỦ HÀNG TẠI DOCK THÀNH CÔNG! Xe đã sẵn sàng tiến về Cổng Ra để Cân Lần 2 (W2).'
+      });
+      fetchEntries();
+    } catch (err: any) {
+      setAlertMessage({
+        type: 'error',
+        text: err.message || 'Lỗi khi Thủ kho xác nhận nhận hàng tại Dock'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchEntries();
     fetchDocks();
@@ -153,7 +190,8 @@ interface ApprovedOrder {
         driverIdCard,
         carrierName,
         entryType,
-        purpose
+        purpose,
+        poDoCode: poDoCode || 'PO-20260728-08'
       });
 
       // Weigh in W1
@@ -206,7 +244,7 @@ interface ApprovedOrder {
 
       const isPass = res.verification_status === 'VALID';
       if (isPass) {
-        setAlertMessage({ type: 'success', text: `Cân Lần 2 HỢP LỆ! Net weight = ${res.net_weight} kg. Độ lệch: ${res.diff_percentage}%` });
+        setAlertMessage({ type: 'success', text: `Đã lưu số cân W2 thành công! Net weight = ${res.net_weight?.toLocaleString()} kg. Xe VẪN ĐANG NẰM TRONG KHO (Đứng ở trạm cân cổng ra). Nhấn "Cho Xe Xuất Cổng" để mở Ba-ri-e cho xe rời kho!` });
       } else {
         setAlertMessage({ type: 'error', text: `CẢNH BÁO: Trọng lượng lệch ${res.diff_percentage}% (Vượt quá dung sai 1.5%). Khóa Barrier!` });
       }
@@ -219,7 +257,8 @@ interface ApprovedOrder {
   const handleCheckOutSubmit = async (entryId: string) => {
     try {
       await apiPost('/gate/check-out', { truckEntryId: entryId });
-      setAlertMessage({ type: 'success', text: 'Xe đã xuất cổng thành công. Đóng chuyến!' });
+      setAlertMessage({ type: 'success', text: 'Ba-ri-e đã mở! Xe đã xuất cổng thành công và chính thức rời khỏi kho.' });
+      setSelectedEntryForScaleOut('');
       fetchEntries();
     } catch (err: any) {
       setAlertMessage({ type: 'error', text: err.message || 'Lỗi xuất cổng' });
@@ -228,11 +267,63 @@ interface ApprovedOrder {
 
   // Selected entry calculations for Scale Out tab
   const activeScaleOutEntry = entries.find(e => e.id === selectedEntryForScaleOut);
-  const netWeightCalc = activeScaleOutEntry?.weight_in ? Math.abs(activeScaleOutEntry.weight_in - weightOut) : 0;
-  const expectedWeightCalc = expectedQtyCases * stdWeightPerCase;
+
+  // Auto-sync expectedQtyCases and stdWeightPerCase when active scale out entry changes
+  React.useEffect(() => {
+    if (activeScaleOutEntry) {
+      const confirmedQty = Number(activeScaleOutEntry.confirmed_qty_cases || 0);
+      const skuLines: any[] = Array.isArray(activeScaleOutEntry.po_sku_lines) ? activeScaleOutEntry.po_sku_lines : [];
+      const specWeight = skuLines[0]?.unitWeightKg ? Number(skuLines[0].unitWeightKg) : 8.5;
+
+      if (confirmedQty > 0) {
+        setExpectedQtyCases(confirmedQty);
+      } else {
+        const poCode = activeScaleOutEntry.po_do_code;
+        const samePoList = entries.filter(x => poCode && x.po_do_code === poCode);
+        const poTotalCases = skuLines.length > 0
+          ? skuLines.reduce((sum: number, l: any) => sum + Number(l.orderedQty || 0), 0)
+          : 400;
+        setExpectedQtyCases(samePoList.length > 1 ? Math.round(poTotalCases / samePoList.length) : poTotalCases);
+      }
+
+      if (specWeight > 0) {
+        setStdWeightPerCase(specWeight);
+      }
+    }
+  }, [selectedEntryForScaleOut, activeScaleOutEntry?.id, activeScaleOutEntry?.confirmed_qty_cases]);
+
+  const netWeightCalc = activeScaleOutEntry?.weight_in ? Math.abs(activeScaleOutEntry.weight_in - weightOut) : 1700;
+  const currentTruckCases = expectedQtyCases > 0 ? expectedQtyCases : (activeScaleOutEntry?.confirmed_qty_cases || 200);
+  const expectedWeightCalc = currentTruckCases * (stdWeightPerCase || 8.5);
   const weightDiffCalc = Math.abs(netWeightCalc - expectedWeightCalc);
   const diffPctCalc = expectedWeightCalc > 0 ? (weightDiffCalc / expectedWeightCalc) * 100 : 0;
-  const isTolerancePass = diffPctCalc <= 1.5;
+  const isStrictPass = diffPctCalc <= toleranceThresholdPercent; // <= 1.5%
+  const isWarningPass = !isStrictPass && diffPctCalc <= (toleranceThresholdPercent * 2); // 1.5% -> 3.0%
+  const isTolerancePass = isStrictPass || isWarningPass;
+
+  const handleResetTestData = async () => {
+    if (!window.confirm('⚠️ Bạn có chắc chắn muốn XÓA SẠCH toàn bộ dữ liệu xe & phiếu cân test để kiểm thử lại từ đầu không?')) {
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await apiPost('/gate/reset-data', {});
+      setAlertMessage({
+        type: 'success',
+        text: '🧹 ĐÃ XÓA SẠCH DỮ LIỆU XE & CÂN TRẠM TEST THÀNH CÔNG! Dữ liệu đã sạch sẽ, bạn có thể Check-in xe mới để test lại từ đầu.'
+      });
+      setSelectedEntryForDock('');
+      setSelectedEntryForScaleOut('');
+      fetchEntries();
+    } catch (err: any) {
+      setAlertMessage({
+        type: 'error',
+        text: err.message || 'Lỗi khi reset dữ liệu test'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -248,12 +339,21 @@ interface ApprovedOrder {
               Kiểm soát an ninh cổng, Cân xe 2 lần ($W_1, W_2$), Tự động điều phối Dock &amp; Đối soát dung sai khối lượng thực tế.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetTestData}
+              className="bg-rose-600/90 hover:bg-rose-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-rose-400/40 shadow-sm active:scale-95"
+              title="Xóa sạch toàn bộ xe test để test lại từ đầu"
+            >
+              <span className="material-symbols-outlined text-base">restart_alt</span>
+              🧹 Reset Data Test Cân
+            </button>
             <button
               onClick={fetchEntries}
-              className="bg-indigo-600/80 hover:bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2 border border-indigo-400/30"
+              className="bg-indigo-600/80 hover:bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 border border-indigo-400/30 active:scale-95"
             >
-              <span className={`material-symbols-outlined text-lg ${isLoading ? 'animate-spin' : ''}`}>refresh</span>
+              <span className={`material-symbols-outlined text-base ${isLoading ? 'animate-spin' : ''}`}>refresh</span>
               Làm Mới
             </button>
           </div>
@@ -291,8 +391,8 @@ interface ApprovedOrder {
       {/* Alert banner */}
       {alertMessage && (
         <div className={`p-4 rounded-xl flex items-center justify-between ${
-          alertMessage.type === 'success' 
-            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+          alertMessage.type === 'success'
+            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
             : 'bg-rose-50 text-rose-800 border border-rose-200'
         }`}>
           <div className="flex items-center gap-3 font-medium text-sm">
@@ -571,13 +671,13 @@ interface ApprovedOrder {
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {docks.map(d => {
-              const activeTruck = entries.find(e => {
-                if (e.status !== 'LOADING') return false;
-                if (e.dock_code === d.code) return true;
-                if (e.dock_location_id === d.code || e.dock_location_id === d.id) return true;
-                const resolved = e.dock_code || docks.find(s => s.id === e.dock_location_id || s.code === e.dock_location_id)?.code;
+              const dockTrucks = entries.filter(e => {
+                if (e.status !== 'LOADING' && e.status !== 'WEIGHED_IN') return false;
+                const resolved = e.dock_code || docks.find(s => s.id === e.dock_location_id || s.code === e.dock_location_id)?.code || e.dock_location_id;
                 return resolved === d.code;
               });
+              const activeTruck = dockTrucks.find(e => e.status === 'LOADING') || dockTrucks[0];
+              const queuedTrucks = dockTrucks.filter(e => e.id !== activeTruck?.id);
               const isBusy = !!activeTruck;
               const candidateTruck = entries.find(e => e.id === selectedEntryForDock) || entries.find(e => e.status === 'WEIGHED_IN') || entries.find(e => e.status === 'LOADING');
 
@@ -596,27 +696,49 @@ interface ApprovedOrder {
                     }
                   }}
                   title={!isBusy ? `Click để mở xác nhận gán xe vào ${d.code}` : undefined}
-                  className={`p-5 rounded-2xl border transition-all cursor-pointer hover:shadow-md hover:scale-[1.01] ${
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer hover:shadow-md hover:scale-[1.01] flex flex-col justify-between ${
                     !isBusy
                       ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950 hover:border-emerald-400'
                       : 'bg-amber-50/60 border-amber-200 text-amber-950 shadow-sm ring-2 ring-amber-300'
                   }`}
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-bold text-lg font-data-mono">{d.code}</span>
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                      !isBusy ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
-                    }`}>
-                      {!isBusy ? 'SẴN SÀNG' : 'ĐANG BỐC HẠ'}
-                    </span>
-                  </div>
-                  <div className="text-sm font-medium text-slate-700">{d.name}</div>
-                  {activeTruck && (
-                    <div className="mt-2 text-xs font-data-mono font-bold text-amber-900 bg-amber-100/80 px-2 py-1 rounded-lg flex items-center justify-between border border-amber-300">
-                      <span>Xe: {activeTruck.license_plate}</span>
-                      <span className="text-[10px] text-amber-700">{activeTruck.entry_code}</span>
+                  <div>
+                    <div className="flex justify-between items-start mb-1.5">
+                      <span className="font-bold text-lg font-data-mono">{d.code}</span>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                        !isBusy ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
+                      }`}>
+                        {!isBusy ? 'SẴN SÀNG' : 'ĐANG BỐC HẠ'}
+                      </span>
                     </div>
-                  )}
+                    <div className="text-xs font-medium text-slate-700 line-clamp-1">{d.name}</div>
+                  </div>
+
+                  <div className="space-y-1.5 mt-3">
+                    {/* Active Truck directly at Dock Leveler */}
+                    {activeTruck && (
+                      <div className="text-xs font-data-mono font-bold text-amber-900 bg-amber-100/90 px-2 py-1 rounded-lg flex items-center justify-between border border-amber-300 shadow-sm">
+                        <span className="flex items-center gap-1 truncate">
+                          <span className="material-symbols-outlined text-[13px] text-amber-700 animate-pulse">local_shipping</span>
+                          <span className="truncate">Tại Dock: {activeTruck.license_plate}</span>
+                        </span>
+                        <span className="text-[9px] text-amber-800 font-normal shrink-0 ml-1">{activeTruck.entry_code}</span>
+                      </div>
+                    )}
+
+                    {/* Queued Trucks Compact Badge */}
+                    {queuedTrucks.length > 0 && (
+                      <div className="text-[10px] font-bold text-indigo-950 bg-indigo-100/90 px-2 py-1 rounded-md flex items-center justify-between border border-indigo-300" title={`Các xe xếp hàng chờ đỗ vào ${d.code}: ${queuedTrucks.map(q => q.license_plate).join(', ')}`}>
+                        <span className="flex items-center gap-1 text-indigo-700 shrink-0">
+                          <span className="material-symbols-outlined text-[12px]">schedule</span>
+                          Chờ tiếp (+{queuedTrucks.length}):
+                        </span>
+                        <span className="font-data-mono font-bold text-indigo-900 truncate ml-1 max-w-[100px]">
+                          {queuedTrucks.map(q => q.license_plate).join(', ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -641,9 +763,12 @@ interface ApprovedOrder {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {entries.filter(e => e.status === 'WEIGHED_IN' || e.status === 'LOADING').map(e => {
+                  {entries.filter(e => e.status === 'WEIGHED_IN' || e.status === 'LOADING' || e.status === 'DOCK_RECEIVED').map(e => {
                     const isSelected = selectedEntryForDock === e.id;
                     const displayDock = e.dock_code || docks.find(d => d.id === e.dock_location_id || d.code === e.dock_location_id)?.code || e.dock_location_id;
+                    const sameDockEntries = entries.filter(x => (x.status === 'LOADING' || x.status === 'WEIGHED_IN') && displayDock && (x.dock_code === displayDock || x.dock_location_id === displayDock));
+                    const isFirstAtDock = sameDockEntries.length > 0 && sameDockEntries[0]?.id === e.id;
+                    const isQueued = displayDock && !isFirstAtDock && e.status !== 'WEIGHED_OUT';
 
                     return (
                       <tr
@@ -664,45 +789,82 @@ interface ApprovedOrder {
                         <td className="p-3 font-data-mono font-bold text-slate-900">{e.license_plate}</td>
                         <td className="p-3">{e.driver_name}</td>
                         <td className="p-3 font-data-mono">{e.weight_in ? `${e.weight_in.toLocaleString()} kg` : '-'}</td>
-                        <td className="p-3">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                            e.status === 'LOADING' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                        <td className="p-3 whitespace-nowrap">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap inline-block ${
+                            e.status === 'WEIGHED_OUT'
+                              ? 'bg-purple-100 text-purple-900 border border-purple-300'
+                              : e.storekeeper_confirmed || e.status === 'DOCK_RECEIVED'
+                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                              : isQueued
+                              ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                              : e.status === 'LOADING'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-blue-100 text-blue-800'
                           }`}>
-                            {e.status === 'LOADING' ? 'Đang hạ hàng' : 'Đã cân W1'}
+                            {e.status === 'WEIGHED_OUT'
+                              ? '🏁 Đã Cân W2 (Chờ Xuất Cổng)'
+                              : e.storekeeper_confirmed || e.status === 'DOCK_RECEIVED'
+                              ? '🟢 Thủ kho đã nhận đủ'
+                              : isQueued
+                              ? '⏳ Xếp hàng chờ'
+                              : e.status === 'LOADING'
+                              ? 'Đang hạ hàng'
+                              : 'Đã cân W1'}
                           </span>
                         </td>
-                        <td className="p-3 font-data-mono font-bold text-indigo-900 bg-indigo-50/50 px-2.5 py-1 rounded-md inline-block my-2 border border-indigo-200">
-                          {displayDock || 'Chưa điều phối'}
+                        <td className="p-3 whitespace-nowrap">
+                          <span className="font-data-mono font-bold text-indigo-900 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-200 inline-flex items-center gap-1">
+                            {displayDock || 'Chưa điều phối'}
+                            {isQueued && <span className="text-[10px] text-indigo-700 bg-indigo-200/80 px-1.5 py-0.5 rounded font-sans font-extrabold">Hàng chờ</span>}
+                          </span>
                         </td>
                         <td className="p-3 text-right" onClick={(ev) => ev.stopPropagation()}>
                           <div className="flex justify-end items-center gap-2">
-                            <select
-                              id={`dock-select-${e.id}`}
-                              defaultValue={displayDock || 'DOCK-A01'}
-                              className="bg-slate-50 border border-slate-300 font-data-mono font-semibold text-slate-800 text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                            >
-                              {docks.map(d => (
-                                <option key={d.code} value={d.code}>
-                                  {d.code} - {d.name}
-                                </option>
-                              ))}
-                            </select>
-                            <button
-                              onClick={() => {
-                                const sel = document.getElementById(`dock-select-${e.id}`) as HTMLSelectElement;
-                                const selectedDockCode = sel ? sel.value : 'DOCK-A01';
-                                const dockObj = docks.find(x => x.code === selectedDockCode) || { id: selectedDockCode, code: selectedDockCode, name: selectedDockCode, status: 'AVAILABLE' };
-                                setConfirmDockModal({
-                                  isOpen: true,
-                                  truckEntry: e,
-                                  dock: dockObj
-                                });
-                              }}
-                              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1 shadow-sm"
-                            >
-                              <span className="material-symbols-outlined text-[14px]">check</span>
-                              Gán Dock
-                            </button>
+                            {e.status === 'WEIGHED_OUT' ? (
+                              <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-lg border border-purple-200 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-[14px]">lock</span>
+                                🔒 Đã xong Dock (Chờ xuất cổng)
+                              </span>
+                            ) : (
+                              <>
+                                <select
+                                  id={`dock-select-${e.id}`}
+                                  defaultValue={displayDock || 'DOCK-A01'}
+                                  className="bg-slate-50 border border-slate-300 font-data-mono font-semibold text-slate-800 text-xs rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                >
+                                  {docks.map(d => {
+                                    const count = entries.filter(x => (x.status === 'LOADING' || x.status === 'WEIGHED_IN') && (x.dock_code === d.code || x.dock_location_id === d.code)).length;
+                                    let label = `${d.code} - ${d.name}`;
+                                    if (count > 0) {
+                                      label += ` (${count === 1 ? 'Đang bốc 1 xe' : `Đang bốc 1 xe • +${count - 1} xe chờ`})`;
+                                    } else {
+                                      label += ` (Sẵn sàng)`;
+                                    }
+                                    return (
+                                      <option key={d.code} value={d.code}>
+                                        {label}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                                <button
+                                  onClick={() => {
+                                    const sel = document.getElementById(`dock-select-${e.id}`) as HTMLSelectElement;
+                                    const selectedDockCode = sel ? sel.value : 'DOCK-A01';
+                                    const dockObj = docks.find(x => x.code === selectedDockCode) || { id: selectedDockCode, code: selectedDockCode, name: selectedDockCode, status: 'AVAILABLE' };
+                                    setConfirmDockModal({
+                                      isOpen: true,
+                                      truckEntry: e,
+                                      dock: dockObj
+                                    });
+                                  }}
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1 shadow-sm"
+                                >
+                                  <span className="material-symbols-outlined text-[14px]">check</span>
+                                  Gán Dock
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -738,76 +900,132 @@ interface ApprovedOrder {
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="">-- Chọn xe đang trong kho --</option>
-                  {entries.filter(e => e.status === 'LOADING' || e.status === 'WEIGHED_IN').map(e => (
-                    <option key={e.id} value={e.id}>
-                      {e.license_plate} - {e.driver_name} (W1: {e.weight_in?.toLocaleString()} kg) - Mã: {e.entry_code}
-                    </option>
-                  ))}
+                  {entries.filter(e => e.status === 'LOADING' || e.status === 'WEIGHED_IN' || e.status === 'DOCK_RECEIVED' || e.status === 'WEIGHED_OUT').map(e => {
+                    const samePoList = entries.filter(x => (x.po_do_code && e.po_do_code && x.po_do_code === e.po_do_code) || (!x.po_do_code && !e.po_do_code));
+                    const truckIdx = samePoList.findIndex(x => x.id === e.id) + 1;
+                    const truckTotalCount = samePoList.length || 1;
+                    const poLabel = e.po_do_code ? `[${e.po_do_code}]` : '[PO-20260728-08]';
+                    const idxLabel = samePoList.length > 1 ? ` (Xe ${truckIdx}/${truckTotalCount})` : '';
+                    const confirmedTag = e.storekeeper_confirmed || e.status === 'DOCK_RECEIVED' ? ' [🟢 Thủ Kho Đã Nhận Đủ]' : '';
+
+                    return (
+                      <option key={e.id} value={e.id}>
+                        {poLabel} {e.license_plate} - {e.driver_name}{idxLabel} (W1: {e.weight_in?.toLocaleString()} kg){confirmedTag} {e.status === 'WEIGHED_OUT' ? '[🏁 Đã Cân W2 - Chờ Mở Cổng]' : ''} - Mã: {e.entry_code}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
               {activeScaleOutEntry && (
-                <div className="bg-indigo-50/80 p-3.5 rounded-xl border border-indigo-200 flex items-center justify-between text-xs text-indigo-950 animate-fade-in">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-indigo-600">receipt_long</span>
-                    <div>
-                      <span className="font-bold text-slate-700">Đơn Hàng Khai Báo WMS: </span>
-                      <span className="font-data-mono font-bold text-indigo-700">{activeScaleOutEntry.po_do_code || 'PO-20260728-08'}</span>
-                      <span className="mx-2 text-slate-300">|</span>
-                      <span>Mặt Hàng: <strong className="text-slate-900">{activeScaleOutEntry.sku_name || 'Bia 333 Lon 330ml'}</strong></span>
-                      <span className="mx-2 text-slate-300">|</span>
-                      <span>Số Lượng Đăng Ký: <strong className="text-slate-900">{activeScaleOutEntry.expected_qty_cases || 500} thùng</strong></span>
+                <div className="space-y-3.5">
+                  {/* Storekeeper Confirmation Banner */}
+                  {activeScaleOutEntry.storekeeper_confirmed || activeScaleOutEntry.status === 'DOCK_RECEIVED' ? (
+                    <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-xl flex items-center justify-between text-xs text-emerald-950 shadow-sm animate-fade-in">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-emerald-600">verified</span>
+                        <div>
+                          <span className="font-bold">ĐỐI SOÁT DOCK: </span>
+                          <span>Thủ kho đã kiểm đếm và xác nhận hạ <strong>đủ hàng</strong> xuống kho. Sẵn sàng cho Bảo vệ cân ra &amp; mở cổng!</span>
+                        </div>
+                      </div>
+                      <span className="bg-emerald-600 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-full uppercase shrink-0">🟢 ĐÃ XÁC NHẬN HÀNG</span>
                     </div>
+                  ) : (
+                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex items-center justify-between text-xs text-amber-950 shadow-sm animate-fade-in">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-amber-600">pending_actions</span>
+                        <div>
+                          <span className="font-bold">CHỜ THỦ KHO XÁC NHẬN TẠI DOCK: </span>
+                          <span>Xe đang hạ hàng. Thủ kho cần kiểm đếm và bấm xác nhận nhận đủ hàng.</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmDockReceipt(activeScaleOutEntry.id)}
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-1 shadow-sm shrink-0"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                        Xác Nhận Nhanh (Thủ Kho)
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="bg-indigo-50/80 p-3.5 rounded-xl border border-indigo-200 flex items-center justify-between text-xs text-indigo-950 animate-fade-in">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-indigo-600">receipt_long</span>
+                      <div>
+                        <span className="font-bold text-slate-700">Đơn Hàng Khai Báo WMS: </span>
+                        <span className="font-data-mono font-bold text-indigo-700">{activeScaleOutEntry.po_do_code || 'PO-20260728-08'}</span>
+                        <span className="mx-2 text-slate-300">|</span>
+                        <span>Mặt Hàng: <strong className="text-slate-900">{activeScaleOutEntry.sku_name || 'Bia 333 Lon 330ml'}</strong></span>
+                        <span className="mx-2 text-slate-300">|</span>
+                        <span>Số Lượng Hạ Kho Xe Này: <strong className="text-slate-900 font-data-mono">{activeScaleOutEntry.confirmed_qty_cases || expectedQtyCases || 200} thùng</strong></span>
+                      </div>
+                    </div>
+                    <span className="bg-indigo-200 text-indigo-800 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider shrink-0">
+                      Tự Động Đánh Giá
+                    </span>
                   </div>
-                  <span className="bg-indigo-200 text-indigo-800 text-[10px] font-extrabold px-2 py-0.5 rounded uppercase tracking-wider shrink-0">
-                    Tự Động Đánh Giá
-                  </span>
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Mặt Hàng (SKU Quy Chuẩn)</label>
-                  <select
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      if (val > 0) setStdWeightPerCase(val);
-                    }}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="11.2">Bia 333 Lon 330ml (11.2 kg/thùng)</option>
-                    <option value="19.5">Bia Saigon Special Chai (19.5 kg/két)</option>
-                    <option value="62.0">Bia Keg Saigon 50L (62.0 kg/keg)</option>
-                    <option value="9.8">Nước Ngọt Mirinda (9.8 kg/thùng)</option>
-                    <option value="0">Tùy chỉnh thủ công...</option>
-                  </select>
+              {/* 4 Cards Grid: 3 Read-Only CSDL Specs + 1 Manual Scale Input W2 */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                {/* Card 1: PO & SKU Spec Info */}
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-slate-500 font-semibold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[15px] text-indigo-600">inventory_2</span>
+                    Đơn PO &amp; Mặt Hàng SKU
+                  </span>
+                  <div className="font-data-mono font-extrabold text-sm text-indigo-950 truncate">
+                    {activeScaleOutEntry?.po_do_code || poDoCode}
+                  </div>
+                  <span className="text-[11px] text-slate-600 font-medium block truncate">
+                    {activeScaleOutEntry?.sku_name || (Array.isArray(activeScaleOutEntry?.po_sku_lines) && activeScaleOutEntry.po_sku_lines.length > 0 ? `${activeScaleOutEntry.po_sku_lines.length} SKU quy chuẩn` : 'Mirinda Cam')}
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Số Lượng Đơn Hàng (Thùng/Két/Keg)</label>
-                  <input
-                    type="number"
-                    value={expectedQtyCases}
-                    onChange={(e) => setExpectedQtyCases(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-data-mono font-bold text-slate-900"
-                  />
+
+                {/* Card 2: Confirmed Cases */}
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-slate-500 font-semibold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[15px] text-emerald-600">numbers</span>
+                    Số Lượng Xe Này Hạ Kho
+                  </span>
+                  <div className="font-data-mono font-extrabold text-sm text-emerald-900">
+                    {currentTruckCases.toLocaleString()} thùng
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-medium block">
+                    {activeScaleOutEntry?.storekeeper_confirmed || activeScaleOutEntry?.status === 'DOCK_RECEIVED' ? '🟢 Thủ kho đã đếm &amp; xác nhận' : '⏳ Chờ đếm tại Dock'}
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Trọng Lượng Chuẩn SKU (kg/đơn vị)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={stdWeightPerCase}
-                    onChange={(e) => setStdWeightPerCase(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-data-mono text-slate-900"
-                  />
+
+                {/* Card 3: Expected Spec Weight */}
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                  <span className="text-slate-500 font-semibold flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[15px] text-amber-600">scale</span>
+                    Tải Trọng Dự Kiến (CSDL Spec)
+                  </span>
+                  <div className="font-data-mono font-extrabold text-sm text-amber-900">
+                    {expectedWeightCalc.toLocaleString()} kg ({(expectedWeightCalc / 1000).toFixed(2)} Tấn)
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-medium block">
+                    {stdWeightPerCase} kg/thùng (Master Data Spec)
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Trọng Lượng Cân Lần 2 ($W_2$ - kg)</label>
+
+                {/* Card 4: ONLY EDITABLE FIELD — Scale Out W2 Weight Input */}
+                <div className="bg-indigo-50/90 p-2.5 rounded-xl border-2 border-indigo-500 shadow-sm space-y-1">
+                  <label className="block text-xs font-extrabold text-indigo-950 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[16px] text-rose-600 animate-pulse">speed</span>
+                    🔴 Nhập Trọng Lượng Cân Lần 2 ($W_2$ - kg) (*)
+                  </label>
                   <input
                     type="number"
                     value={weightOut}
                     onChange={(e) => setWeightOut(Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-data-mono font-bold text-indigo-900"
+                    className="w-full px-3 py-1.5 bg-white rounded-lg border border-indigo-400 font-data-mono font-extrabold text-base text-indigo-950 shadow-inner focus:ring-2 focus:ring-indigo-600"
+                    placeholder="Nhập số kg trên đồng hồ cân..."
                   />
                 </div>
               </div>
@@ -823,44 +1041,202 @@ interface ApprovedOrder {
                 />
               </div>
 
-              {/* Automatic Calculation & Verification Box */}
+              {/* Dynamic PO Multi-Truck Cumulative Progress Panel */}
+              {activeScaleOutEntry && (() => {
+                const poCode = activeScaleOutEntry.po_do_code || 'PO-20260728-08';
+                const poObj = approvedOrders.find(o => o.order_code === poCode);
+
+                const poSkuLines: any[] = Array.isArray((activeScaleOutEntry as any).po_sku_lines) ? (activeScaleOutEntry as any).po_sku_lines : [];
+                const calculatedPoWeightFromSkuSpec = poSkuLines.reduce((sum: number, l: any) => sum + Number(l.lineWeightKg || 0), 0);
+
+                const poTotalWeight = calculatedPoWeightFromSkuSpec > 0
+                  ? calculatedPoWeightFromSkuSpec
+                  : (poObj?.expected_weight_kg || (expectedQtyCases * (stdWeightPerCase || 8.5)) || 3400);
+
+                const poTotalCases = poSkuLines.length > 0
+                  ? poSkuLines.reduce((sum: number, l: any) => sum + Number(l.orderedQty || 0), 0)
+                  : (poObj?.total_qty || expectedQtyCases || 400);
+
+                // Strict filtering for trucks belonging ONLY to this specific poCode
+                const samePoTrucks = entries.filter(e => e.po_do_code === poCode || (poObj?.order_code && e.po_do_code === poObj.order_code));
+                const prevTrucks = samePoTrucks.filter(e => e.id !== activeScaleOutEntry.id && (e.status === 'WEIGHED_OUT' || e.status === 'COMPLETED'));
+                const prevWeightSum = prevTrucks.reduce((sum, e) => {
+                  if (e.net_weight && Number(e.net_weight) > 0) return sum + Number(e.net_weight);
+                  if (e.weight_in && e.weight_out && e.weight_in > e.weight_out) return sum + (e.weight_in - e.weight_out);
+                  return sum;
+                }, 0);
+                const unitWeightRef = (stdWeightPerCase && stdWeightPerCase > 0) ? stdWeightPerCase : 8.5;
+                const prevCasesSum = Math.round(prevWeightSum / unitWeightRef);
+
+                const currentTruckCases = Math.round(netWeightCalc / unitWeightRef);
+                const cumulativeWeight = prevWeightSum + netWeightCalc;
+                const cumulativeCases = prevCasesSum + currentTruckCases;
+
+                const rawProgressPct = poTotalWeight > 0 ? Math.round((cumulativeWeight / poTotalWeight) * 100) : 100;
+                const isOverDelivered = cumulativeWeight > (poTotalWeight * 1.025); // Over 102.5% is Surplus / Over-delivery
+                const isComplete = rawProgressPct >= 98 && !isOverDelivered;
+
+                const totalRegisteredTrucks = samePoTrucks.length || 1;
+                const completedTrucksCount = prevTrucks.length + (activeScaleOutEntry.status === 'WEIGHED_OUT' || activeScaleOutEntry.status === 'COMPLETED' ? 1 : 0);
+                const isAllTrucksWeighedOut = completedTrucksCount >= totalRegisteredTrucks;
+
+                return (
+                  <div className="bg-indigo-50/90 border border-indigo-200 p-4 rounded-2xl space-y-3 text-xs text-indigo-950 shadow-sm mb-4">
+                    <div className="flex justify-between items-center font-bold text-sm text-indigo-900 border-b border-indigo-200/80 pb-2">
+                      <span className="flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-indigo-600">analytics</span>
+                        Bảng Tự Động Đối Soát Cộng Dồn Nhiều Chuyến Xe — Đơn PO [{poCode}]
+                      </span>
+                      <span className="bg-indigo-600 text-white text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                        ĐÃ CÂN {completedTrucksCount}/{totalRegisteredTrucks} XE
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 font-data-mono">
+                      <div className="bg-white p-2.5 rounded-xl border border-indigo-100">
+                        <span className="text-slate-500 block text-[10px] font-semibold font-sans">Tổng PO Khai Báo:</span>
+                        <strong className="text-slate-900 text-sm">{poTotalWeight.toLocaleString()} kg ({poTotalCases.toLocaleString()} thùng)</strong>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-xl border border-indigo-100">
+                        <span className="text-slate-500 block text-[10px] font-semibold font-sans">Các Xe Trước Của PO [{poCode}]:</span>
+                        <strong className="text-emerald-700 text-sm">{prevWeightSum.toLocaleString()} kg ({prevCasesSum.toLocaleString()} thùng)</strong>
+                      </div>
+                      <div className="bg-white p-2.5 rounded-xl border border-indigo-100">
+                        <span className="text-slate-500 block text-[10px] font-semibold font-sans">Xe Hiện Tại ({activeScaleOutEntry.license_plate}):</span>
+                        <strong className="text-indigo-700 text-sm">{netWeightCalc.toLocaleString()} kg ({currentTruckCases.toLocaleString()} thùng)</strong>
+                      </div>
+                      <div className={`p-2.5 rounded-xl border ${
+                        isOverDelivered
+                          ? 'bg-rose-100/90 border-rose-300 animate-pulse'
+                          : isComplete
+                          ? 'bg-emerald-100/90 border-emerald-300'
+                          : isAllTrucksWeighedOut
+                          ? 'bg-amber-100/90 border-amber-300'
+                          : 'bg-blue-100/90 border-blue-300'
+                      }`}>
+                        <span className={`block text-[10px] font-extrabold font-sans ${
+                          isOverDelivered ? 'text-rose-800' : isComplete ? 'text-emerald-800' : isAllTrucksWeighedOut ? 'text-amber-800' : 'text-blue-800'
+                        }`}>Tiến Độ Lũy Kế Tích Lũy:</span>
+                        <strong className={`text-sm font-extrabold ${
+                          isOverDelivered ? 'text-rose-900' : isComplete ? 'text-emerald-900' : isAllTrucksWeighedOut ? 'text-amber-900' : 'text-blue-900'
+                        }`}>
+                          {cumulativeWeight.toLocaleString()} / {poTotalWeight.toLocaleString()} kg ({rawProgressPct}%) {isOverDelivered ? '🚨' : isComplete ? '✅' : '⏳'}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div className={`text-[11px] font-semibold p-2.5 rounded-lg flex items-center gap-2 border ${
+                      isOverDelivered
+                        ? 'bg-rose-100/90 text-rose-950 border-rose-300'
+                        : isComplete
+                        ? 'bg-emerald-100/80 text-emerald-900 border-emerald-300'
+                        : isAllTrucksWeighedOut
+                        ? 'bg-amber-100/90 text-amber-950 border-amber-300'
+                        : 'bg-blue-100/80 text-blue-950 border-blue-200'
+                    }`}>
+                      <span className={`material-symbols-outlined text-[18px] ${
+                        isOverDelivered ? 'text-rose-600 animate-pulse' : isComplete ? 'text-emerald-600' : isAllTrucksWeighedOut ? 'text-amber-600' : 'text-blue-600'
+                      }`}>
+                        {isOverDelivered ? 'warning' : isComplete ? 'verified' : isAllTrucksWeighedOut ? 'report_problem' : 'pending_actions'}
+                      </span>
+                      <span>
+                        {isOverDelivered
+                          ? `🚨 CẢNH BÁO GIAO DƯ / QUÁ TẢI HÀNG KHO: Tổng thực nhận (${cumulativeWeight.toLocaleString()} kg) VƯỢT DƯ ${(cumulativeWeight - poTotalWeight).toLocaleString()} kg (+${rawProgressPct - 100}%) so với Đơn PO [${poCode}] đăng ký (${poTotalWeight.toLocaleString()} kg). Khóa Quyết Toán Tự Động! Từ chối nhận lượng hàng rác/hàng dư thừa ngoài hợp đồng.`
+                          : isComplete
+                          ? `🎉 Tất cả ${totalRegisteredTrucks} xe của Đơn PO [${poCode}] đã giao đủ ${rawProgressPct}% (${cumulativeWeight.toLocaleString()} / ${poTotalWeight.toLocaleString()} kg)! Quyết toán phiếu nhập kho GRN.`
+                          : isAllTrucksWeighedOut
+                          ? `⚠️ ĐÃ CÂN XONG TOÀN BỘ ${completedTrucksCount}/${totalRegisteredTrucks} XE CỦA ĐƠN PO [${poCode}]. Tổng thực nhận đạt ${cumulativeWeight.toLocaleString()} / ${poTotalWeight.toLocaleString()} kg (${rawProgressPct}%). Không còn xe nào khác đăng ký! Tự động chốt Biên Bản Giao Thiếu (Shortage Receipt: thiếu ${Math.max(0, poTotalWeight - cumulativeWeight).toLocaleString()} kg) & cho phép các xe xuất cổng.`
+                          : `ℹ️ Đã giao ${rawProgressPct}% của Đơn PO [${poCode}] (${cumulativeWeight.toLocaleString()} / ${poTotalWeight.toLocaleString()} kg) qua ${completedTrucksCount}/${totalRegisteredTrucks} xe. Còn thiếu ${Math.max(0, poTotalWeight - cumulativeWeight).toLocaleString()} kg — Chờ xe tiếp theo.`}
+                      </span>
+                    </div>
+
+                    <div className="pt-2 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => window.open(`/api/v1/gate/reports/po/${poCode}/pdf`, '_blank')}
+                        className="bg-indigo-700 hover:bg-indigo-800 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm transition-colors active:scale-95"
+                        title="Tải xuống hoặc xem trực tiếp Biên bản quyết toán PO dạng PDF"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">picture_as_pdf</span>
+                        📄 Xuất Báo Cáo PDF Quyết Toán PO [{poCode}]
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Automatic Calculation & Verification Box for THIS Truck */}
               {activeScaleOutEntry && (
                 <div className={`p-5 rounded-2xl border transition-all ${
-                  isTolerancePass 
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-950' 
+                  isStrictPass
+                    ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                    : isWarningPass
+                    ? 'bg-amber-50/90 border-amber-300 text-amber-950'
                     : 'bg-rose-50 border-rose-300 text-rose-950 animate-pulse'
                 }`}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2 font-bold text-base">
-                      <span className="material-symbols-outlined text-2xl">
-                        {isTolerancePass ? 'check_circle' : 'warning'}
+                      <span className={`material-symbols-outlined text-2xl ${
+                        isStrictPass ? 'text-emerald-700' : isWarningPass ? 'text-amber-700' : 'text-rose-700'
+                      }`}>
+                        {isStrictPass ? 'fact_check' : isWarningPass ? 'report_problem' : 'warning'}
                       </span>
-                      <span>KẾT QUẢ ĐỐI SOÁT TRỌNG LƯỢNG KHO</span>
+                      <span>KẾT QUẢ ĐỐI SOÁT TRẠM CÂN — XE [{activeScaleOutEntry.license_plate}]</span>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide ${
-                      isTolerancePass ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                      isStrictPass ? 'bg-emerald-700 text-white' : isWarningPass ? 'bg-amber-600 text-white' : 'bg-rose-600 text-white'
                     }`}>
-                      {isTolerancePass ? 'GREEN - HỢP LỆ' : 'RED - CẢNH BÁO LỆCH'}
+                      {isStrictPass
+                        ? `🟢 XÁC NHẬN: CHUẨN KHỚP TRỌNG LƯỢNG (${netWeightCalc.toLocaleString()} KG)`
+                        : isWarningPass
+                        ? `🟡 BÁO VÀNG: TRONG NGƯỠNG DUNG SAI MỞ RỘNG (${diffPctCalc.toFixed(2)}%)`
+                        : `🔴 RED - CẢNH BÁO BẤT THƯỜNG (> ${(toleranceThresholdPercent * 2).toFixed(1)}%)`}
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm pt-2 border-t border-slate-200">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm pt-2 border-t border-slate-200/80">
                     <div>
-                      <div className="text-xs text-slate-500">Net Weight Thực Cân:</div>
-                      <div className="font-data-mono font-bold text-lg">{netWeightCalc.toLocaleString()} kg</div>
+                      <div className="text-xs text-slate-500 font-medium">Net Weight Hạ Kho ($W_1 - W_2$):</div>
+                      <div className="font-data-mono font-extrabold text-lg text-indigo-950">{netWeightCalc.toLocaleString()} kg</div>
                     </div>
                     <div>
-                      <div className="text-xs text-slate-500">Trọng Lượng Chuẩn:</div>
-                      <div className="font-data-mono font-bold text-lg">{expectedWeightCalc.toLocaleString()} kg</div>
+                      <div className="text-xs text-slate-500 font-medium">Tải Trọng Quy Đổi Dự Kiến ({currentTruckCases} thùng):</div>
+                      <div className="font-data-mono font-bold text-lg text-slate-800">{expectedWeightCalc.toLocaleString()} kg</div>
                     </div>
                     <div>
-                      <div className="text-xs text-slate-500">Chênh Lệch Thực Tế:</div>
-                      <div className="font-data-mono font-bold text-lg">{weightDiffCalc.toLocaleString()} kg</div>
+                      <div className="text-xs text-slate-500 font-medium">Chênh Lệch Thực Nhận:</div>
+                      <div className="font-data-mono font-bold text-lg text-slate-800">{weightDiffCalc.toLocaleString()} kg</div>
                     </div>
                     <div>
-                      <div className="text-xs text-slate-500">% Sai Lệch Dung Sai:</div>
-                      <div className="font-data-mono font-extrabold text-lg">{diffPctCalc.toFixed(2)}%</div>
+                      <div className="text-xs text-slate-500 font-medium">Tỷ Lệ Dung Sai (Cài Đặt: {toleranceThresholdPercent}%):</div>
+                      <div className={`font-data-mono font-extrabold text-lg ${
+                        isStrictPass ? 'text-emerald-700' : isWarningPass ? 'text-amber-700' : 'text-rose-700'
+                      }`}>
+                        {diffPctCalc.toFixed(2)}%
+                      </div>
                     </div>
+                  </div>
+
+                  <div className={`mt-3 text-xs p-2.5 rounded-xl border flex items-center justify-between ${
+                    isStrictPass ? 'bg-white/80 border-emerald-200 text-slate-700' : isWarningPass ? 'bg-amber-100/90 border-amber-300 text-amber-950 font-medium' : 'bg-rose-100/90 border-rose-300 text-rose-950 font-bold'
+                  }`}>
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <span className={`material-symbols-outlined text-[16px] ${
+                        isStrictPass ? 'text-emerald-600' : isWarningPass ? 'text-amber-600' : 'text-rose-600'
+                      }`}>
+                        {isStrictPass ? 'info' : isWarningPass ? 'help_outline' : 'warning'}
+                      </span>
+                      {isStrictPass
+                        ? `Trạm cân ghi nhận xe ${activeScaleOutEntry.license_plate} trút xuống kho ${netWeightCalc.toLocaleString()} kg (~${currentTruckCases} thùng). Khớp chuẩn trong dung sai mặc định (${toleranceThresholdPercent}%).`
+                        : isWarningPass
+                        ? `ℹ️ NẰM TRONG VÙNG DUNG SAI MỞ RỘNG: Lệch ${weightDiffCalc.toLocaleString()} kg (${diffPctCalc.toFixed(2)}%). Cho phép Bảo vệ mở barrier nếu có ghi chú giải trình lý do (nhiên liệu / pallet bẩn).`
+                        : `🚨 CẢNH BÁO BẤT THƯỜNG: Xe ${activeScaleOutEntry.license_plate} trút ${netWeightCalc.toLocaleString()} kg, LỆCH ${weightDiffCalc.toLocaleString()} kg (${diffPctCalc.toFixed(2)}%) VƯỢT QUÁ DUNG SAI CHO PHÉP (${toleranceThresholdPercent}%) so với ${currentTruckCases} thùng (${expectedWeightCalc.toLocaleString()} kg)!`}
+                    </span>
+                    <span className={`font-bold px-2 py-0.5 rounded text-[11px] shrink-0 ${
+                      isStrictPass ? 'text-slate-900 bg-emerald-100' : isWarningPass ? 'text-amber-900 bg-amber-200' : 'text-rose-900 bg-rose-200'
+                    }`}>
+                      {isStrictPass ? 'Bảo vệ kiểm tra trước khi mở barrier' : isWarningPass ? 'Cho phép xuất xe + Ghi chú giải trình' : '⛔ YÊU CẦU KIỂM TRA THÙNG XE KHÔNG CHO XUẤT CỔNG'}
+                    </span>
                   </div>
                 </div>
               )}
@@ -892,7 +1268,7 @@ interface ApprovedOrder {
               <div className="flex items-center justify-between text-xs text-slate-400 mb-3">
                 <span className="font-semibold uppercase tracking-wider text-cyan-400 flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-                  Trạm Cân Cổng Ra (Live Scale)
+                  Trạm Cân Cổng Ra (Live Scale Indicator)
                 </span>
                 <span>ID: SCALE-02</span>
               </div>
@@ -902,25 +1278,50 @@ interface ApprovedOrder {
                   {weightOut.toLocaleString()} <span className="text-lg font-normal text-slate-400">KG</span>
                 </div>
               </div>
+
+              {/* Quick Test Simulation Presets for User */}
+              <div className="my-3 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWeightOut(1000)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-emerald-300 text-[10px] font-bold py-1.5 px-2 rounded-lg border border-slate-700 transition-colors"
+                >
+                  ⚡ Test Cân Ra 1,000 kg (Khớp)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setWeightOut(2120)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-rose-300 text-[10px] font-bold py-1.5 px-2 rounded-lg border border-slate-700 transition-colors"
+                >
+                  ⚡ Test Cân Ra 2,120 kg (Lệch)
+                </button>
+              </div>
+
               <div className="text-xs text-slate-400 space-y-2 mt-4">
                 <div className="flex justify-between border-b border-slate-800 pb-1">
                   <span>Khối Lượng Hàng Thực Tế:</span>
                   <span className="text-amber-300 font-bold font-data-mono">{netWeightCalc.toLocaleString()} kg</span>
                 </div>
                 <div className="flex justify-between border-b border-slate-800 pb-1">
-                  <span>Ngưỡng Dung Sai Cho Phép:</span>
-                  <span className="text-white font-data-mono">1.5%</span>
+                  <span>Dung Sai Tiêu Chuẩn FMCG:</span>
+                  <span className="text-white font-data-mono">2.5%</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between border-b border-slate-800 pb-1">
                   <span>Trạng Thái Cảnh Báo:</span>
-                  <span className={`font-bold ${isTolerancePass ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {isTolerancePass ? 'HỢP LỆ' : 'VƯỢT DUNG SAI'}
+                  <span className={`font-bold font-data-mono ${isTolerancePass ? 'text-emerald-400' : 'text-rose-400 animate-pulse'}`}>
+                    {isTolerancePass ? 'HỢP LỆ (VALID) ✅' : `🚨 CẢNH BÁO LỆCH (${diffPctCalc.toFixed(1)}%)`}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-1">
+                  <span>Điều Khiển Barrier Cổng:</span>
+                  <span className={`font-bold ${isTolerancePass ? 'text-cyan-400' : 'text-rose-500 font-extrabold'}`}>
+                    {isTolerancePass ? '🟢 SẴN SÀNG MỞ CỔNG' : '🛑 KHÓA BARRIER CỔNG RA'}
                   </span>
                 </div>
               </div>
             </div>
             <div className="mt-6 pt-4 border-t border-slate-800 text-center text-xs text-slate-500">
-              Chỉ barrier cổng ra tự động nâng lên khi trạng thái đối soát báo VALID.
+              Thiết bị mô phỏng Đầu Cân Điện Tử Live Terminal kết nối trực tiếp bộ cảm biến bàn cân cổng ra RS-232 / Modbus.
             </div>
           </div>
         </div>

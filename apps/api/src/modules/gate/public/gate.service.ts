@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { GateDatabaseService } from './gate-database.service.js';
+import { PoPdfReportService, PoReportData } from './po-pdf-report.service.js';
 
 export interface CreateCheckInDto {
   licensePlate: string;
@@ -31,9 +32,18 @@ export interface WeighOutDto {
   notes?: string;
 }
 
+export interface ConfirmDockReceiptDto {
+  truckEntryId: string;
+  confirmedQtyCases?: number;
+  notes?: string;
+}
+
 @Injectable()
 export class GateService {
-  constructor(private readonly db: GateDatabaseService) {}
+  constructor(
+    private readonly db: GateDatabaseService,
+    private readonly pdfReport: PoPdfReportService
+  ) {}
 
   private generateEntryCode(): string {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
@@ -65,12 +75,13 @@ export class GateService {
 
     const entryCode = this.generateEntryCode();
     const dockLocationId = await this.resolveDockLocationId(dto.dockLocationId);
+    const poDoCode = (dto as any).poDoCode || (dto as any).po_do_code || 'PO-20260728-08';
 
     const rows = await this.db.query(
       `INSERT INTO gate.truck_entry (
         entry_code, license_plate, driver_name, driver_id_card, carrier_name,
-        entry_type, purpose, po_id, so_id, dock_location_id, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'CHECKED_IN')
+        entry_type, purpose, po_id, so_id, dock_location_id, status, po_do_code
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'CHECKED_IN', $11)
       RETURNING *`,
       [
         entryCode,
@@ -82,7 +93,8 @@ export class GateService {
         dto.purpose || 'INBOUND',
         dto.poId || null,
         dto.soId || null,
-        dockLocationId
+        dockLocationId,
+        poDoCode
       ]
     );
 
@@ -109,7 +121,7 @@ export class GateService {
       let ticket;
       if (existingTickets.rows.length > 0) {
         const updated = await client.query(
-          `UPDATE gate.weighbridge_ticket 
+          `UPDATE gate.weighbridge_ticket
            SET weight_in = $1, weighed_in_at = now(), weighed_in_by = $2, updated_at = now()
            WHERE id = $3 RETURNING *`,
           [dto.weightIn, actorId || null, existingTickets.rows[0].id]
@@ -147,8 +159,8 @@ export class GateService {
     const dockLocationId = await this.resolveDockLocationId(dto.dockLocationId);
 
     const updated = await this.db.query(
-      `UPDATE gate.truck_entry 
-       SET dock_location_id = $1, status = 'LOADING', updated_at = now() 
+      `UPDATE gate.truck_entry
+       SET dock_location_id = $1, status = 'LOADING', updated_at = now()
        WHERE id = $2 RETURNING *`,
       [dockLocationId, dto.truckEntryId]
     );
@@ -184,7 +196,7 @@ export class GateService {
 
     return await this.db.transaction(async (client) => {
       const updatedTicket = await client.query(
-        `UPDATE gate.weighbridge_ticket 
+        `UPDATE gate.weighbridge_ticket
          SET weight_out = $1, weighed_out_at = now(), weighed_out_by = $2,
              net_weight = $3, expected_weight = $4, weight_diff = $5,
              diff_percentage = $6, verification_status = $7, notes = $8, updated_at = now()
@@ -207,8 +219,78 @@ export class GateService {
         [dto.truckEntryId]
       );
 
+      // Auto-complete PO when cumulative delivered weight reaches expected PO weight or all registered trucks finish
+      const truckEntries = await client.query(`SELECT po_do_code, po_id FROM gate.truck_entry WHERE id = $1`, [dto.truckEntryId]);
+      const entry = truckEntries.rows[0];
+      const poCode = entry?.po_do_code;
+      if (poCode) {
+        try {
+          const weightCheck = await client.query(
+            `SELECT COALESCE(SUM(t.net_weight), 0) as total_net
+             FROM gate.truck_entry e
+             JOIN gate.weighbridge_ticket t ON t.truck_entry_id = e.id
+             WHERE (e.po_do_code = $1 OR e.po_id::text = $1) AND e.status IN ('WEIGHED_OUT', 'COMPLETED')`,
+            [poCode]
+          );
+          const poWeightRes = await client.query(
+            `SELECT COALESCE(SUM(pol.ordered_qty * COALESCE(ps.gross_weight_kg, 8.5)), 0) as expected_total
+             FROM purchasing.purchase_order po
+             JOIN purchasing.purchase_order_line pol ON pol.po_id = po.id
+             LEFT JOIN catalog.packaging_specification ps ON ps.sku_id = pol.sku_id AND ps.valid_until IS NULL
+             WHERE po.po_code = $1 OR po.id::text = $1
+             GROUP BY po.id`,
+            [poCode]
+          );
+          const netSum = Number(weightCheck.rows[0]?.total_net || 0);
+          const expSum = Number(poWeightRes.rows[0]?.expected_total || 0);
+
+          if (expSum > 0 && netSum >= (expSum * 0.95)) {
+            await client.query(
+              `UPDATE purchasing.purchase_order SET status = 'COMPLETED', updated_at = now() WHERE po_code = $1 OR id::text = $1`,
+              [poCode]
+            );
+            setTimeout(() => {
+              this.generatePoPdfReport(poCode).catch(e => console.error('Error generating auto PDF:', e));
+            }, 1000);
+          }
+        } catch (poErr) {
+          console.error('Error auto-completing PO:', poErr);
+        }
+      }
+
       return updatedTicket.rows[0];
     });
+  }
+
+  async confirmDockReceipt(dto: ConfirmDockReceiptDto, actorId?: string) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(dto.truckEntryId);
+    if (!isUuid) {
+      throw new NotFoundException('Không tìm thấy thông tin chuyến xe (Mã ID không hợp lệ)');
+    }
+
+    const entries = await this.db.query(`SELECT * FROM gate.truck_entry WHERE id = $1`, [dto.truckEntryId]);
+    if (entries.length === 0) {
+      throw new NotFoundException('Không tìm thấy thông tin chuyến xe');
+    }
+
+    const noteStr = dto.confirmedQtyCases
+      ? `Thủ kho kiểm đếm hạ ${dto.confirmedQtyCases} thùng xe này. ${dto.notes || ''}`.trim()
+      : (dto.notes || null);
+
+    const updated = await this.db.query(
+      `UPDATE gate.truck_entry
+       SET status = 'DOCK_RECEIVED',
+           storekeeper_confirmed = true,
+           storekeeper_confirmed_at = now(),
+           storekeeper_confirmed_by = $2,
+           storekeeper_notes = $3,
+           confirmed_qty_cases = $4,
+           updated_at = now()
+       WHERE id = $1 RETURNING *`,
+      [dto.truckEntryId, actorId || null, noteStr, dto.confirmedQtyCases || null]
+    );
+
+    return updated[0];
   }
 
   async checkOut(truckEntryId: string) {
@@ -218,8 +300,8 @@ export class GateService {
     }
 
     const updated = await this.db.query(
-      `UPDATE gate.truck_entry 
-       SET status = 'COMPLETED', updated_at = now() 
+      `UPDATE gate.truck_entry
+       SET status = 'COMPLETED', updated_at = now()
        WHERE id = $1 RETURNING *`,
       [truckEntryId]
     );
@@ -229,7 +311,23 @@ export class GateService {
 
   async listEntries(status?: string) {
     let sql = `
-      SELECT e.*, t.weight_in, t.weight_out, t.net_weight, t.expected_weight, t.diff_percentage, t.verification_status, COALESCE(l.code, e.dock_location_id::text) as dock_code
+      SELECT e.*,
+             t.weight_in, t.weight_out, t.net_weight, t.expected_weight, t.diff_percentage, t.verification_status,
+             COALESCE(l.code, e.dock_location_id::text) as dock_code,
+             COALESCE((
+               SELECT json_agg(json_build_object(
+                 'skuCode', k.code,
+                 'skuName', k.name,
+                 'orderedQty', pol.ordered_qty,
+                 'unitWeightKg', COALESCE(ps.gross_weight_kg, 8.5),
+                 'lineWeightKg', (pol.ordered_qty * COALESCE(ps.gross_weight_kg, 8.5))
+               ))
+               FROM purchasing.purchase_order po
+               JOIN purchasing.purchase_order_line pol ON pol.po_id = po.id
+               JOIN catalog.sku k ON k.id = pol.sku_id
+               LEFT JOIN catalog.packaging_specification ps ON ps.sku_id = k.id AND ps.valid_until IS NULL
+               WHERE po.po_code = e.po_do_code OR po.id = e.po_id
+             ), '[]'::json) AS po_sku_lines
       FROM gate.truck_entry e
       LEFT JOIN gate.weighbridge_ticket t ON t.truck_entry_id = e.id
       LEFT JOIN warehouse.location l ON l.id = e.dock_location_id
@@ -248,7 +346,23 @@ export class GateService {
 
   async getEntryById(id: string) {
     const rows = await this.db.query(
-      `SELECT e.*, t.weight_in, t.weighed_in_at, t.weight_out, t.weighed_out_at, t.net_weight, t.expected_weight, t.diff_percentage, t.verification_status, t.notes, COALESCE(l.code, e.dock_location_id::text) as dock_code
+      `SELECT e.*,
+              t.weight_in, t.weighed_in_at, t.weight_out, t.weighed_out_at, t.net_weight, t.expected_weight, t.diff_percentage, t.verification_status, t.notes,
+              COALESCE(l.code, e.dock_location_id::text) as dock_code,
+              COALESCE((
+                SELECT json_agg(json_build_object(
+                  'skuCode', k.code,
+                  'skuName', k.name,
+                  'orderedQty', pol.ordered_qty,
+                  'unitWeightKg', COALESCE(ps.gross_weight_kg, 8.5),
+                  'lineWeightKg', (pol.ordered_qty * COALESCE(ps.gross_weight_kg, 8.5))
+                ))
+                FROM purchasing.purchase_order po
+                JOIN purchasing.purchase_order_line pol ON pol.po_id = po.id
+                JOIN catalog.sku k ON k.id = pol.sku_id
+                LEFT JOIN catalog.packaging_specification ps ON ps.sku_id = k.id AND ps.valid_until IS NULL
+                WHERE po.po_code = e.po_do_code OR po.id = e.po_id
+              ), '[]'::json) AS po_sku_lines
        FROM gate.truck_entry e
        LEFT JOIN gate.weighbridge_ticket t ON t.truck_entry_id = e.id
        LEFT JOIN warehouse.location l ON l.id = e.dock_location_id
@@ -334,5 +448,92 @@ export class GateService {
     }
 
     return [...pos, ...dos];
+  }
+
+  async resetData() {
+    await this.db.query(`DELETE FROM gate.weighbridge_ticket`);
+    await this.db.query(`DELETE FROM gate.truck_entry`);
+    return { success: true, message: 'Đã xóa toàn bộ dữ liệu xe & cân trạm test thành công!' };
+  }
+
+  async generatePoPdfReport(poCode: string) {
+    const poRes = await this.db.query(`
+      SELECT po.id, po.po_code, po.status, to_char(po.order_date, 'YYYY-MM-DD') as order_date,
+             COALESCE(s.name, s.code, 'Suntory PepsiCo Việt Nam') as supplier_name
+      FROM purchasing.purchase_order po
+      LEFT JOIN purchasing.supplier s ON s.id = po.supplier_id
+      WHERE po.po_code = $1 OR po.id::text = $1
+    `, [poCode]);
+
+    const po = poRes[0];
+    if (!po) {
+      throw new NotFoundException(`Không tìm thấy đơn PO [${poCode}]`);
+    }
+
+    const skuLinesRes = await this.db.query(`
+      SELECT k.code as sku_code, k.name as sku_name, pol.ordered_qty,
+             COALESCE(ps.gross_weight_kg, 8.5) as unit_weight_kg,
+             (pol.ordered_qty * COALESCE(ps.gross_weight_kg, 8.5)) as line_weight_kg
+      FROM purchasing.purchase_order_line pol
+      JOIN catalog.sku k ON k.id = pol.sku_id
+      LEFT JOIN catalog.packaging_specification ps ON ps.sku_id = k.id AND ps.valid_until IS NULL
+      WHERE pol.po_id = $1
+    `, [po.id]);
+
+    const trucksRes = await this.db.query(`
+      SELECT e.entry_code, e.license_plate, e.driver_name, e.status, e.confirmed_qty_cases,
+             COALESCE(l.code, e.dock_location_id::text, 'DOCK-A01') as dock_code,
+             COALESCE(t.weight_in, 0) as weight_in,
+             COALESCE(t.weight_out, 0) as weight_out,
+             COALESCE(t.net_weight, 0) as net_weight,
+             COALESCE(t.verification_status, 'VALID') as verification_status
+      FROM gate.truck_entry e
+      LEFT JOIN gate.weighbridge_ticket t ON t.truck_entry_id = e.id
+      LEFT JOIN warehouse.location l ON l.id = e.dock_location_id
+      WHERE e.po_do_code = $1 OR e.po_id::text = $1
+      ORDER BY e.created_at ASC
+    `, [poCode]);
+
+    const skuLines = skuLinesRes.map((r: any) => ({
+      skuCode: r.sku_code,
+      skuName: r.sku_name,
+      orderedQty: Number(r.ordered_qty),
+      unitWeightKg: Number(r.unit_weight_kg),
+      lineWeightKg: Number(r.line_weight_kg)
+    }));
+
+    const totalExpectedWeightKg = skuLines.reduce((sum: number, l: any) => sum + l.lineWeightKg, 0);
+    const totalExpectedCases = skuLines.reduce((sum: number, l: any) => sum + l.orderedQty, 0);
+
+    const truckEntries = trucksRes.map((r: any) => ({
+      entryCode: r.entry_code,
+      licensePlate: r.license_plate,
+      driverName: r.driver_name,
+      dockCode: r.dock_code,
+      weightIn: Number(r.weight_in),
+      weightOut: Number(r.weight_out),
+      netWeight: Number(r.net_weight),
+      confirmedQtyCases: r.confirmed_qty_cases ? Number(r.confirmed_qty_cases) : undefined,
+      verificationStatus: r.verification_status
+    }));
+
+    const reportData: PoReportData = {
+      poCode: po.po_code,
+      supplierName: po.supplier_name,
+      status: po.status,
+      orderDate: po.order_date,
+      totalExpectedWeightKg,
+      totalExpectedCases,
+      skuLines,
+      truckEntries
+    };
+
+    const pdfPath = await this.pdfReport.generatePoReportPdf(reportData);
+    return {
+      success: true,
+      poCode: po.po_code,
+      pdfPath,
+      message: `Đã sinh thành công báo cáo PDF quyết toán đơn PO [${po.po_code}] tại ${pdfPath}`
+    };
   }
 }

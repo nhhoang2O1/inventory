@@ -18,7 +18,7 @@ CREATE TABLE purchasing.purchase_order (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   po_code text NOT NULL UNIQUE CHECK (po_code = upper(btrim(po_code))),
   supplier_id uuid NOT NULL REFERENCES purchasing.supplier(id) ON DELETE RESTRICT,
-  status text NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED', 'CANCELLED')),
+  status text NOT NULL DEFAULT 'DRAFT' CHECK (status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED', 'COMPLETED', 'CANCELLED')),
   order_date date NOT NULL DEFAULT current_date,
   expected_delivery_date timestamptz NOT NULL,
   created_by uuid NOT NULL REFERENCES iam.app_user(id) ON DELETE RESTRICT,

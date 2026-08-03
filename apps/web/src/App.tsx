@@ -69,6 +69,7 @@ export function App() {
             }}
             operatorId={auth.username}
             userRole={auth.userRole}
+            onQuickSwitchRole={auth.quickSwitchRole}
           />
         )}
 
@@ -183,6 +184,7 @@ export function App() {
             <WarehouseLayoutView
               actorId={auth.userId}
               warehouseId={auth.selectedWarehouseId}
+              userRole={auth.userRole}
             />
           )}
 
@@ -190,11 +192,12 @@ export function App() {
             <GateWeighbridgeView
               actorId={auth.userId}
               warehouseId={auth.selectedWarehouseId}
+              userRole={auth.userRole}
             />
           )}
 
           {auth.isLoggedIn && auth.view === 'purchasing' && (
-            <PurchasingView />
+            <PurchasingView userRole={auth.userRole} />
           )}
         </main>
       </div>

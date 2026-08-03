@@ -11,9 +11,10 @@ interface Warehouse {
 interface WarehouseLayoutViewProps {
   actorId: string;
   warehouseId?: string;
+  userRole?: string;
 }
 
-export const WarehouseLayoutView: React.FC<WarehouseLayoutViewProps> = ({ actorId, warehouseId: initialWarehouseId }) => {
+export const WarehouseLayoutView: React.FC<WarehouseLayoutViewProps> = ({ actorId, warehouseId: initialWarehouseId, userRole }) => {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>(initialWarehouseId || '');
   const [layoutId, setLayoutId] = useState<string | null>(null);
@@ -23,6 +24,9 @@ export const WarehouseLayoutView: React.FC<WarehouseLayoutViewProps> = ({ actorI
   const [selectedNode, setSelectedNode] = useState<LayoutNode | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const isManager = (userRole || '').toUpperCase().includes('MANAGER') || (userRole || '').toUpperCase().includes('QUẢN LÝ');
+  const activeEditMode = isManager ? isEditMode : false;
 
   const { positions, allLocations } = useInventory(actorId, selectedWarehouseId);
   const mergedOccupancyMap = computeMergedOccupancyMap(occupancyMap, positions);
@@ -220,29 +224,38 @@ export const WarehouseLayoutView: React.FC<WarehouseLayoutViewProps> = ({ actorI
             ))}
           </select>
 
-          {/* Toggle Edit Mode */}
-          <button
-            onClick={() => setIsEditMode(!isEditMode)}
-            style={{ padding: '8px 16px', background: isEditMode ? '#334155' : '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
-          >
-            {isEditMode ? '👁️ Xem Sơ Đồ' : '✏️ Chỉnh Sửa Bố Cục'}
-          </button>
-
-          {/* Save & Publish Action Buttons */}
-          {isEditMode && (
+          {/* View-Only Badge for Non-Managers vs Edit Toggle for Manager */}
+          {!isManager ? (
+            <span style={{ padding: '8px 16px', background: '#0284c7', color: '#fff', borderRadius: '8px', fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              👁️ Chế Độ Chỉ Xem Sơ Đồ Kho (View-Only)
+            </span>
+          ) : (
             <>
+              {/* Toggle Edit Mode */}
               <button
-                onClick={handleSaveLayout}
-                style={{ padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                onClick={() => setIsEditMode(!isEditMode)}
+                style={{ padding: '8px 16px', background: isEditMode ? '#334155' : '#0284c7', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
               >
-                💾 Lưu Sơ Đồ
+                {isEditMode ? '👁️ Xem Sơ Đồ' : '✏️ Chỉnh Sửa Bố Cục'}
               </button>
-              <button
-                onClick={handlePublishLayout}
-                style={{ padding: '8px 16px', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
-              >
-                🚀 Áp Dụng (Publish)
-              </button>
+
+              {/* Save & Publish Action Buttons */}
+              {isEditMode && (
+                <>
+                  <button
+                    onClick={handleSaveLayout}
+                    style={{ padding: '8px 16px', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    💾 Lưu Sơ Đồ
+                  </button>
+                  <button
+                    onClick={handlePublishLayout}
+                    style={{ padding: '8px 16px', background: '#8b5cf6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    🚀 Áp Dụng (Publish)
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>
@@ -266,7 +279,7 @@ export const WarehouseLayoutView: React.FC<WarehouseLayoutViewProps> = ({ actorI
       )}
 
       {/* Main Grid Layout: Canvas & Properties Side Panel */}
-      <div style={{ display: 'grid', gridTemplateColumns: isEditMode ? '1fr 280px' : '1fr', gap: '20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: activeEditMode ? '1fr 280px' : '1fr', gap: '20px' }}>
         {/* Left: 2D Layout Canvas */}
         <div>
           {loading ? (
@@ -276,7 +289,7 @@ export const WarehouseLayoutView: React.FC<WarehouseLayoutViewProps> = ({ actorI
           ) : (
             <WarehouseLayoutEditor
               nodes={nodes}
-              isEditMode={isEditMode}
+              isEditMode={activeEditMode}
               occupancyMap={mergedOccupancyMap}
               onNodesChange={setNodes}
               onSelectNode={setSelectedNode}
@@ -285,7 +298,7 @@ export const WarehouseLayoutView: React.FC<WarehouseLayoutViewProps> = ({ actorI
         </div>
 
         {/* Right: Edit Controls Panel (Visible when editing) */}
-        {isEditMode && (
+        {activeEditMode && (
           <div style={{ background: '#1e293b', borderRadius: '12px', padding: '20px', border: '1px solid #334155', height: 'fit-content' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0 0 16px 0', color: '#f8fafc' }}>
               🛠️ Thêm Vật Thể Kho

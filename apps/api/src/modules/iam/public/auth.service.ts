@@ -201,6 +201,7 @@ export class AuthService {
     // Map database role code to frontend UserRole representation
     let userRole = 'Warehouse Staff';
     if (user.role_code === 'MANAGER') userRole = 'Manager';
+    else if (user.role_code === 'GATEKEEPER') userRole = 'Gatekeeper';
     else if (user.role_code === 'ACCOUNTANT') userRole = 'Accountant';
     else if (user.role_code === 'SALES') userRole = 'Sales';
 
