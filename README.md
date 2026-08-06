@@ -8,28 +8,47 @@ Architecture foundation cho hệ thống quản lý kho bán sỉ bia và nướ
 - npm 10.x.
 - Docker Desktop với Docker Compose v2.
 
-## Chạy nhanh
+## Hướng Dẫn Chạy Chương Trình
+
+### 1. Khởi tạo môi trường & Cơ sở dữ liệu
 
 ```powershell
 Copy-Item .env.example .env
 npm install
 npm run db:up
 npm run db:migrate
-npm run dev:api
 ```
 
-Ở terminal khác:
+### 2. Chạy Backend HTTP API (NestJS - Port 3000)
+
+```powershell
+npm run dev:api
+```
+- API Health Check: `GET http://localhost:3000/api/v1/health`
+- PostgreSQL publish ở `localhost:55432` (tránh trùng cổng 5432).
+
+### 3. Chạy AI Nhận Diện Biển Số Xe 2-Stage YOLO (Python Microservice - Port 8000)
+
+```powershell
+python scripts/ocr_service.py
+```
+- Dịch vụ AI OCR chạy ở `http://localhost:8000/scan-license-plate`.
+- Tự động nạp mô hình pre-trained YOLOv5 Nano (`LP_detector_nano_61.pt` & `LP_ocr_nano_62.pt`) nhận diện biển số và từng ký tự biển số xe Việt Nam.
+
+### 4. Chạy Frontend Web App (React Vite - Port 5173)
 
 ```powershell
 npm run dev:web
+```
+- Mở trình duyệt truy cập: `http://localhost:5173`
+
+### 5. (Tùy chọn) Chạy Background Worker
+
+```powershell
 npm run dev:worker
 ```
 
-API health: `GET http://localhost:3000/api/v1/health`.
-
-PostgreSQL của WMS được publish ở `localhost:55432` để tránh xung đột với PostgreSQL mặc định trên cổng 5432.
-
-Chạy toàn bộ stack bằng container sau khi đã có registry/network:
+### 6. Chạy bằng Docker Compose (Full Stack)
 
 ```powershell
 docker compose --profile full up --build

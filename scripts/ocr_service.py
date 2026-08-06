@@ -126,6 +126,8 @@ async def scan_plate(file: UploadFile = File(...)):
 
     detected_box = False
     crop_img = img
+    bbox_coords = None
+    img_h, img_w = img.shape[:2]
 
     # Stage 1: Phát hiện vị trí biển số (Plate Detection)
     if detector_model is not None:
@@ -137,25 +139,41 @@ async def scan_plate(file: UploadFile = File(...)):
             x1, y1 = int(best_plate[0]), int(best_plate[1])
             x2, y2 = int(best_plate[2]), int(best_plate[3])
 
-            h, w, _ = img.shape
-            x1, y1 = max(0, x1 - 5), max(0, y1 - 5)
-            x2, y2 = min(w, x2 + 5), min(h, y2 + 5)
+            x1_crop, y1_crop = max(0, x1 - 5), max(0, y1 - 5)
+            x2_crop, y2_crop = min(img_w, x2 + 5), min(img_h, y2 + 5)
 
-            if x2 > x1 and y2 > y1:
-                crop_img = img[y1:y2, x1:x2]
+            if x2_crop > x1_crop and y2_crop > y1_crop:
+                crop_img = img[y1_crop:y2_crop, x1_crop:x2_crop]
                 detected_box = True
+                bbox_coords = [x1, y1, x2, y2]
 
     # Stage 2: Nhận diện từng chữ số & ký tự (Character Detection)
     plate_text = recognize_plate(crop_img)
     latency_ms = (time.time() - t0) * 1000
 
-    print(f"[RESULT] Detected: {detected_box} | Plate: '{plate_text}' | Latency: {latency_ms:.1f} ms")
+    annotated_b64 = None
+    if detected_box and bbox_coords:
+        x1, y1, x2, y2 = bbox_coords
+        # 1. Draw Red Rectangle Box (BGR: 0, 0, 225)
+        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 235), 3)
+        # 2. Draw Green License Plate Text (BGR: 0, 255, 0)
+        text_y = max(35, y1 - 12)
+        cv2.putText(img, plate_text or "PLATE", (x1, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1.1, (0, 255, 0), 3)
+
+        _, buffer = cv2.imencode('.jpg', img)
+        import base64
+        annotated_b64 = "data:image/jpeg;base64," + base64.b64encode(buffer).decode('utf-8')
+
+    print(f"[RESULT] Detected: {detected_box} | BBox: {bbox_coords} | Plate: '{plate_text}' | Latency: {latency_ms:.1f} ms")
 
     return {
         "success": bool(plate_text),
         "license_plate": plate_text,
         "latency_ms": round(latency_ms, 2),
-        "detected": detected_box
+        "detected": detected_box,
+        "bbox": bbox_coords,
+        "img_size": [img_w, img_h],
+        "annotated_image": annotated_b64
     }
 
 if __name__ == "__main__":

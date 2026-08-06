@@ -182,40 +182,55 @@ export function GateWeighbridgeView({ actorId, warehouseId, userRole }: { actorI
       }
     }
   };
-  const [liveStreamResult, setLiveStreamResult] = useState<{ plate: string; latency: number; detected: boolean } | null>(null);
-  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [aiDetectedBoxInfo, setAiDetectedBoxInfo] = useState<{ bbox: number[]; img_size: number[]; plate: string } | null>(null);
+  const [isManualEditPlate, setIsManualEditPlate] = useState(false);
 
-  const handleFileUploadScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Realtime Continuous Auto-Scan Effect (Quét liên tục 350ms/lần trực tiếp trên camera live stream)
+  useEffect(() => {
+    if (!webcamActive) return;
 
-    const formData = new FormData();
-    formData.append('file', file);
+    let isScanning = false;
+    const interval = setInterval(async () => {
+      if (isScanning || !videoRef.current || videoRef.current.videoWidth === 0) return;
 
-    try {
-      setIsLoading(true);
-      const res = await fetch('http://localhost:8000/scan-license-plate', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json();
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;
+      canvas.height = 360;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-      if (data.success && data.license_plate) {
-        setLicensePlate(data.license_plate);
-        setAlertMessage({
-          type: 'success',
-          text: `⚡ AI 2-Stage YOLO (Nano): Đã nhận diện biển số [${data.license_plate}] trong ${data.latency_ms} ms!`
-        });
-      } else {
-        setAlertMessage({ type: 'error', text: 'Không đọc được biển số từ ảnh file upload này' });
-      }
-    } catch (err) {
-      setAlertMessage({ type: 'error', text: 'Lỗi kết nối tới AI OCR Service (vui lòng chạy: python scripts/ocr_service.py)' });
-    } finally {
-      setIsLoading(false);
-      e.target.value = '';
-    }
-  };
+      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(async (blob) => {
+        if (!blob) return;
+        isScanning = true;
+        const formData = new FormData();
+        formData.append('file', blob, 'stream.jpg');
+
+        try {
+          const res = await fetch('http://localhost:8000/scan-license-plate', {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await res.json();
+          if (data.success && data.license_plate && data.detected && data.bbox && data.img_size) {
+            setAiDetectedBoxInfo({
+              bbox: data.bbox,
+              img_size: data.img_size,
+              plate: data.license_plate
+            });
+          }
+        } catch (err) {
+          // ignore transient network errors during continuous stream
+        } finally {
+          isScanning = false;
+        }
+      }, 'image/jpeg', 0.7);
+
+    }, 350);
+
+    return () => clearInterval(interval);
+  }, [webcamActive]);
 
   const handleScanLicensePlateFromCamera = async () => {
     if (!videoRef.current || videoRef.current.videoWidth === 0) {
@@ -246,11 +261,13 @@ export function GateWeighbridgeView({ actorId, warehouseId, userRole }: { actorI
 
         if (data.success && data.license_plate) {
           setLicensePlate(data.license_plate);
-          setLiveStreamResult({
-            plate: data.license_plate,
-            latency: data.latency_ms,
-            detected: !!data.detected
-          });
+          if (data.detected && data.bbox && data.img_size) {
+            setAiDetectedBoxInfo({
+              bbox: data.bbox,
+              img_size: data.img_size,
+              plate: data.license_plate
+            });
+          }
           setAlertMessage({
             type: 'success',
             text: `⚡ AI 2-Stage YOLO (Nano): Đã tự động đọc biển số [${data.license_plate}] trong ${data.latency_ms} ms!`
@@ -266,18 +283,18 @@ export function GateWeighbridgeView({ actorId, warehouseId, userRole }: { actorI
     }, 'image/jpeg', 0.9);
   };
 
-interface ApprovedOrder {
-  id: string;
-  order_code: string;
-  purpose: 'INBOUND' | 'OUTBOUND';
-  partner_name?: string;
-  sku_name?: string;
-  total_skus?: number;
-  total_qty?: number;
-  expected_weight_kg?: number;
-  expected_qty?: number;
-  type: 'PO' | 'DO';
-}
+  interface ApprovedOrder {
+    id: string;
+    order_code: string;
+    purpose: 'INBOUND' | 'OUTBOUND';
+    partner_name?: string;
+    sku_name?: string;
+    total_skus?: number;
+    total_qty?: number;
+    expected_weight_kg?: number;
+    expected_qty?: number;
+    type: 'PO' | 'DO';
+  }
 
   const [docks, setDocks] = useState<DockLocation[]>([]);
   const [approvedOrders, setApprovedOrders] = useState<ApprovedOrder[]>([]);
@@ -372,14 +389,52 @@ interface ApprovedOrder {
 
   const handleCheckInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!licensePlate || !driverName) {
-      setAlertMessage({ type: 'error', text: 'Vui lòng nhập Biển số xe và Tên tài xế' });
+    setIsLoading(true);
+
+    let targetPlate = licensePlate.trim();
+
+    // Auto snap camera frame & AI analyze license plate if not manually edited or if plate is empty
+    if (!isManualEditPlate || !targetPlate) {
+      if (videoRef.current && videoRef.current.videoWidth > 0) {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = videoRef.current.videoWidth;
+          canvas.height = videoRef.current.videoHeight;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+            const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+            if (blob) {
+              const formData = new FormData();
+              formData.append('file', blob, 'checkin_scan.jpg');
+              const res = await fetch('http://localhost:8000/scan-license-plate', { method: 'POST', body: formData });
+              const data = await res.json();
+              if (data.success && data.license_plate) {
+                targetPlate = data.license_plate;
+                setLicensePlate(data.license_plate);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('Realtime camera AI snap on submit warning:', err);
+        }
+      }
+    }
+
+    if (!targetPlate) {
+      setAlertMessage({ type: 'error', text: '⚠️ AI Camera chưa nhận diện được biển số xe. Vui lòng căn chỉnh biển số xe trước góc camera (hoặc bấm Sửa Thủ Công để tự nhập).' });
+      setIsLoading(false);
+      return;
+    }
+    if (!driverName) {
+      setAlertMessage({ type: 'error', text: 'Vui lòng nhập Tên tài xế' });
+      setIsLoading(false);
       return;
     }
 
     try {
       const created = await apiPost<TruckEntry>('/gate/check-in', {
-        licensePlate,
+        licensePlate: targetPlate,
         driverName,
         driverIdCard,
         carrierName,
@@ -395,10 +450,11 @@ interface ApprovedOrder {
       });
 
       // Mandatory Auto-Snap & Upload to Google Drive Kho/W1
-      await capturePhotoAndUploadDrive('W1', licensePlate, weightIn);
+      await capturePhotoAndUploadDrive('W1', targetPlate, weightIn);
 
-      setAlertMessage({ type: 'success', text: `Check-in & Cân Lần 1 thành công cho xe ${licensePlate}! Mã: ${created.entry_code} (Đã tự động chụp minh chứng & đẩy Google Drive Kho/W1)` });
+      setAlertMessage({ type: 'success', text: `Check-in & Cân Lần 1 thành công cho xe ${targetPlate}! Mã: ${created.entry_code} (Đã tự động chụp minh chứng & đẩy Google Drive Kho/W1)` });
       setLicensePlate('');
+      setIsManualEditPlate(false);
       setDriverName('');
       setDriverIdCard('');
       setCarrierName('');
@@ -590,11 +646,10 @@ interface ApprovedOrder {
 
       {/* Alert banner */}
       {alertMessage && (
-        <div className={`p-4 rounded-xl flex items-center justify-between ${
-          alertMessage.type === 'success'
+        <div className={`p-4 rounded-xl flex items-center justify-between ${alertMessage.type === 'success'
             ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
             : 'bg-rose-50 text-rose-800 border border-rose-200'
-        }`}>
+          }`}>
           <div className="flex items-center gap-3 font-medium text-sm">
             <span className="material-symbols-outlined">
               {alertMessage.type === 'success' ? 'check_circle' : 'warning'}
@@ -611,44 +666,40 @@ interface ApprovedOrder {
       <div className="flex border-b border-slate-200 bg-white rounded-t-xl px-4 pt-2 shadow-sm">
         <button
           onClick={() => setActiveTab('checkin')}
-          className={`py-3 px-5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === 'checkin'
+          className={`py-3 px-5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'checkin'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           <span className="material-symbols-outlined">login</span>
           1. Cổng Vào &amp; Cân Lần 1 ($W_1$)
         </button>
         <button
           onClick={() => setActiveTab('dock')}
-          className={`py-3 px-5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === 'dock'
+          className={`py-3 px-5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'dock'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           <span className="material-symbols-outlined">warehouse</span>
           2. Điều Phối Dock / Zone
         </button>
         <button
           onClick={() => setActiveTab('scaleout')}
-          className={`py-3 px-5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === 'scaleout'
+          className={`py-3 px-5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'scaleout'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           <span className="material-symbols-outlined">scale</span>
           3. Cân Lần 2 ($W_2$) &amp; Đối Soát
         </button>
         <button
           onClick={() => setActiveTab('history')}
-          className={`py-3 px-5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${
-            activeTab === 'history'
+          className={`py-3 px-5 text-sm font-semibold flex items-center gap-2 border-b-2 transition-colors ${activeTab === 'history'
               ? 'border-indigo-600 text-indigo-600'
               : 'border-transparent text-slate-500 hover:text-slate-800'
-          }`}
+            }`}
         >
           <span className="material-symbols-outlined">list_alt</span>
           4. Nhật Ký Xe Ra/Vào ({entries.length})
@@ -668,18 +719,16 @@ interface ApprovedOrder {
                 <button
                   type="button"
                   onClick={() => setEntryType('MANUAL')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                    entryType === 'MANUAL' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600'
-                  }`}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${entryType === 'MANUAL' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600'
+                    }`}
                 >
                   Cách 1: Khai Báo Thủ Công
                 </button>
                 <button
                   type="button"
                   onClick={handleSimulateQRScan}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                    entryType === 'QR_SCAN' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600'
-                  }`}
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${entryType === 'QR_SCAN' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600'
+                    }`}
                 >
                   Cách 2: Quét Mã QR Tự Động
                 </button>
@@ -739,14 +788,30 @@ interface ApprovedOrder {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">Biển Số Xe (*)</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1 flex items-center justify-between">
+                    <span>Biển Số Xe (*)</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsManualEditPlate(!isManualEditPlate)}
+                      className={`text-[11px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 transition-all active:scale-95 ${isManualEditPlate
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                          : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+                        }`}
+                    >
+                      <span className="material-symbols-outlined text-[13px]">{isManualEditPlate ? 'lock' : 'edit'}</span>
+                      {isManualEditPlate ? '✓ Đã xong (Khóa)' : 'Sửa'}
+                    </button>
+                  </label>
                   <input
                     type="text"
-                    required
+                    readOnly={!isManualEditPlate}
                     placeholder="VD: 51C-738.92"
                     value={licensePlate}
                     onChange={(e) => setLicensePlate(e.target.value.toUpperCase())}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-data-mono font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 uppercase"
+                    className={`w-full px-3.5 py-2.5 rounded-xl border font-data-mono font-extrabold text-slate-900 uppercase transition-all ${isManualEditPlate
+                        ? 'border-amber-500 bg-amber-50/40 ring-2 ring-amber-300'
+                        : 'border-slate-300 bg-slate-100/90 text-indigo-700'
+                      }`}
                   />
                 </div>
                 <div>
@@ -825,53 +890,52 @@ interface ApprovedOrder {
                   <div className="space-y-2">
                     <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-slate-700 shadow-md">
                       <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"></video>
-                      <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[9px] font-extrabold px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+
+                      <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[9px] font-extrabold px-2 py-0.5 rounded flex items-center gap-1 animate-pulse z-10">
                         <div className="w-1.5 h-1.5 rounded-full bg-white"></div> AN NINH TỰ ĐỘNG W1
                       </div>
 
-                      {/* Realtime Live HUD Overlay */}
-                      {liveStreamResult && (
-                        <div className="absolute bottom-2 left-2 right-2 bg-slate-950/90 backdrop-blur-md border border-emerald-500/80 p-2 rounded-lg flex items-center justify-between text-white shadow-xl">
-                          <div className="flex items-center gap-1.5">
-                            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></div>
-                            <span className="text-[10px] font-extrabold text-emerald-400 uppercase">AI 2-STAGE YOLO:</span>
+                      <div className="absolute top-2 right-2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 text-[9px] font-extrabold px-2 py-0.5 rounded-full flex items-center gap-1 z-10">
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></div> AI REALTIME SCAN
+                      </div>
+
+                      {/* Realtime Red Bounding Box & Green License Plate Text Overlay directly on Live Stream */}
+                      {(() => {
+                        if (!aiDetectedBoxInfo || !aiDetectedBoxInfo.bbox || !aiDetectedBoxInfo.img_size) return null;
+                        const x1 = aiDetectedBoxInfo.bbox[0];
+                        const y1 = aiDetectedBoxInfo.bbox[1];
+                        const x2 = aiDetectedBoxInfo.bbox[2];
+                        const y2 = aiDetectedBoxInfo.bbox[3];
+                        const w = aiDetectedBoxInfo.img_size[0];
+                        const h = aiDetectedBoxInfo.img_size[1];
+
+                        if (x1 === undefined || y1 === undefined || x2 === undefined || y2 === undefined || !w || !h) return null;
+
+                        const leftPct = (x1 / w) * 100;
+                        const topPct = (y1 / h) * 100;
+                        const widthPct = ((x2 - x1) / w) * 100;
+                        const heightPct = ((y2 - y1) / h) * 100;
+
+                        return (
+                          <div
+                            className="absolute border-2 border-red-600 rounded-sm pointer-events-none transition-all duration-150 shadow-[0_0_12px_rgba(220,38,38,0.95)] z-20"
+                            style={{
+                              left: `${leftPct}%`,
+                              top: `${topPct}%`,
+                              width: `${widthPct}%`,
+                              height: `${heightPct}%`,
+                            }}
+                          >
+                            {/* Green License Plate Text positioned directly ABOVE the Red Box */}
+                            <div className="absolute -top-7 left-1/2 -translate-x-1/2 text-emerald-400 font-black text-sm md:text-base tracking-wider whitespace-nowrap font-data-mono drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
+                              {aiDetectedBoxInfo.plate}
+                            </div>
                           </div>
-                          <div className="text-lg font-black text-amber-400 font-data-mono tracking-widest bg-slate-900 px-2.5 py-0.5 rounded border border-amber-500/60">
-                            {liveStreamResult.plate || '---'}
-                          </div>
-                          <span className="text-[9px] text-slate-400 font-data-mono">{liveStreamResult.latency}ms</span>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={handleScanLicensePlateFromCamera}
-                        disabled={isLoading}
-                        className="bg-gradient-to-r from-amber-500 to-indigo-600 hover:from-amber-600 hover:to-indigo-700 text-white font-bold text-xs py-2 px-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
-                      >
-                        <span className="material-symbols-outlined text-sm">center_focus_strong</span>
-                        📷 AI Scan Biển Số (2-Stage YOLO)
-                      </button>
 
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        accept="image/*"
-                        onChange={handleFileUploadScan}
-                        className="hidden"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isLoading}
-                        className="bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold text-xs py-2 px-3 rounded-xl border border-slate-600 shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
-                      >
-                        <span className="material-symbols-outlined text-sm">upload_file</span>
-                        📁 Upload Ảnh Biển Số Test AI
-                      </button>
-                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -1000,18 +1064,16 @@ interface ApprovedOrder {
                     }
                   }}
                   title={!isBusy ? `Click để mở xác nhận gán xe vào ${d.code}` : undefined}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer hover:shadow-md hover:scale-[1.01] flex flex-col justify-between ${
-                    !isBusy
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer hover:shadow-md hover:scale-[1.01] flex flex-col justify-between ${!isBusy
                       ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950 hover:border-emerald-400'
                       : 'bg-amber-50/60 border-amber-200 text-amber-950 shadow-sm ring-2 ring-amber-300'
-                  }`}
+                    }`}
                 >
                   <div>
                     <div className="flex justify-between items-start mb-1.5">
                       <span className="font-bold text-lg font-data-mono">{d.code}</span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                        !isBusy ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
-                      }`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${!isBusy ? 'bg-emerald-200 text-emerald-800' : 'bg-amber-200 text-amber-800'
+                        }`}>
                         {!isBusy ? 'SẴN SÀNG' : 'ĐANG BỐC HẠ'}
                       </span>
                     </div>
@@ -1078,9 +1140,8 @@ interface ApprovedOrder {
                       <tr
                         key={e.id}
                         onClick={() => setSelectedEntryForDock(e.id)}
-                        className={`transition-colors cursor-pointer ${
-                          isSelected ? 'bg-indigo-50/90 border-l-4 border-l-indigo-600 shadow-sm' : 'hover:bg-slate-50'
-                        }`}
+                        className={`transition-colors cursor-pointer ${isSelected ? 'bg-indigo-50/90 border-l-4 border-l-indigo-600 shadow-sm' : 'hover:bg-slate-50'
+                          }`}
                       >
                         <td className="p-3 font-data-mono font-bold text-indigo-700">
                           {e.entry_code}
@@ -1094,26 +1155,25 @@ interface ApprovedOrder {
                         <td className="p-3">{e.driver_name}</td>
                         <td className="p-3 font-data-mono">{e.weight_in ? `${e.weight_in.toLocaleString()} kg` : '-'}</td>
                         <td className="p-3 whitespace-nowrap">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap inline-block ${
-                            e.status === 'WEIGHED_OUT'
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-bold whitespace-nowrap inline-block ${e.status === 'WEIGHED_OUT'
                               ? 'bg-purple-100 text-purple-900 border border-purple-300'
                               : e.storekeeper_confirmed || e.status === 'DOCK_RECEIVED'
-                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                              : isQueued
-                              ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
-                              : e.status === 'LOADING'
-                              ? 'bg-amber-100 text-amber-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}>
+                                ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                : isQueued
+                                  ? 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                                  : e.status === 'LOADING'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-blue-100 text-blue-800'
+                            }`}>
                             {e.status === 'WEIGHED_OUT'
                               ? '🏁 Đã Cân W2 (Chờ Xuất Cổng)'
                               : e.storekeeper_confirmed || e.status === 'DOCK_RECEIVED'
-                              ? '🟢 Thủ kho đã nhận đủ'
-                              : isQueued
-                              ? '⏳ Xếp hàng chờ'
-                              : e.status === 'LOADING'
-                              ? 'Đang hạ hàng'
-                              : 'Đã cân W1'}
+                                ? '🟢 Thủ kho đã nhận đủ'
+                                : isQueued
+                                  ? '⏳ Xếp hàng chờ'
+                                  : e.status === 'LOADING'
+                                    ? 'Đang hạ hàng'
+                                    : 'Đã cân W1'}
                           </span>
                         </td>
                         <td className="p-3 whitespace-nowrap">
@@ -1468,48 +1528,43 @@ interface ApprovedOrder {
                         <span className="text-slate-500 block text-[10px] font-semibold font-sans">Xe Hiện Tại ({activeScaleOutEntry.license_plate}):</span>
                         <strong className="text-indigo-700 text-sm">{netWeightCalc.toLocaleString()} kg ({currentTruckCases.toLocaleString()} thùng)</strong>
                       </div>
-                      <div className={`p-2.5 rounded-xl border ${
-                        isOverDelivered
+                      <div className={`p-2.5 rounded-xl border ${isOverDelivered
                           ? 'bg-rose-100/90 border-rose-300 animate-pulse'
                           : isComplete
-                          ? 'bg-emerald-100/90 border-emerald-300'
-                          : isAllTrucksWeighedOut
-                          ? 'bg-amber-100/90 border-amber-300'
-                          : 'bg-blue-100/90 border-blue-300'
-                      }`}>
-                        <span className={`block text-[10px] font-extrabold font-sans ${
-                          isOverDelivered ? 'text-rose-800' : isComplete ? 'text-emerald-800' : isAllTrucksWeighedOut ? 'text-amber-800' : 'text-blue-800'
-                        }`}>Tiến Độ Lũy Kế Tích Lũy:</span>
-                        <strong className={`text-sm font-extrabold ${
-                          isOverDelivered ? 'text-rose-900' : isComplete ? 'text-emerald-900' : isAllTrucksWeighedOut ? 'text-amber-900' : 'text-blue-900'
+                            ? 'bg-emerald-100/90 border-emerald-300'
+                            : isAllTrucksWeighedOut
+                              ? 'bg-amber-100/90 border-amber-300'
+                              : 'bg-blue-100/90 border-blue-300'
                         }`}>
+                        <span className={`block text-[10px] font-extrabold font-sans ${isOverDelivered ? 'text-rose-800' : isComplete ? 'text-emerald-800' : isAllTrucksWeighedOut ? 'text-amber-800' : 'text-blue-800'
+                          }`}>Tiến Độ Lũy Kế Tích Lũy:</span>
+                        <strong className={`text-sm font-extrabold ${isOverDelivered ? 'text-rose-900' : isComplete ? 'text-emerald-900' : isAllTrucksWeighedOut ? 'text-amber-900' : 'text-blue-900'
+                          }`}>
                           {cumulativeWeight.toLocaleString()} / {poTotalWeight.toLocaleString()} kg ({rawProgressPct}%) {isOverDelivered ? '🚨' : isComplete ? '✅' : '⏳'}
                         </strong>
                       </div>
                     </div>
 
-                    <div className={`text-[11px] font-semibold p-2.5 rounded-lg flex items-center gap-2 border ${
-                      isOverDelivered
+                    <div className={`text-[11px] font-semibold p-2.5 rounded-lg flex items-center gap-2 border ${isOverDelivered
                         ? 'bg-rose-100/90 text-rose-950 border-rose-300'
                         : isComplete
-                        ? 'bg-emerald-100/80 text-emerald-900 border-emerald-300'
-                        : isAllTrucksWeighedOut
-                        ? 'bg-amber-100/90 text-amber-950 border-amber-300'
-                        : 'bg-blue-100/80 text-blue-950 border-blue-200'
-                    }`}>
-                      <span className={`material-symbols-outlined text-[18px] ${
-                        isOverDelivered ? 'text-rose-600 animate-pulse' : isComplete ? 'text-emerald-600' : isAllTrucksWeighedOut ? 'text-amber-600' : 'text-blue-600'
+                          ? 'bg-emerald-100/80 text-emerald-900 border-emerald-300'
+                          : isAllTrucksWeighedOut
+                            ? 'bg-amber-100/90 text-amber-950 border-amber-300'
+                            : 'bg-blue-100/80 text-blue-950 border-blue-200'
                       }`}>
+                      <span className={`material-symbols-outlined text-[18px] ${isOverDelivered ? 'text-rose-600 animate-pulse' : isComplete ? 'text-emerald-600' : isAllTrucksWeighedOut ? 'text-amber-600' : 'text-blue-600'
+                        }`}>
                         {isOverDelivered ? 'warning' : isComplete ? 'verified' : isAllTrucksWeighedOut ? 'report_problem' : 'pending_actions'}
                       </span>
                       <span>
                         {isOverDelivered
                           ? `🚨 CẢNH BÁO GIAO DƯ / QUÁ TẢI HÀNG KHO: Tổng thực nhận (${cumulativeWeight.toLocaleString()} kg) VƯỢT DƯ ${(cumulativeWeight - poTotalWeight).toLocaleString()} kg (+${rawProgressPct - 100}%) so với Đơn PO [${poCode}] đăng ký (${poTotalWeight.toLocaleString()} kg). Khóa Quyết Toán Tự Động! Từ chối nhận lượng hàng rác/hàng dư thừa ngoài hợp đồng.`
                           : isComplete
-                          ? `🎉 Tất cả ${totalRegisteredTrucks} xe của Đơn PO [${poCode}] đã giao đủ ${rawProgressPct}% (${cumulativeWeight.toLocaleString()} / ${poTotalWeight.toLocaleString()} kg)! Quyết toán phiếu nhập kho GRN.`
-                          : isAllTrucksWeighedOut
-                          ? `⚠️ ĐÃ CÂN XONG TOÀN BỘ ${completedTrucksCount}/${totalRegisteredTrucks} XE CỦA ĐƠN PO [${poCode}]. Tổng thực nhận đạt ${cumulativeWeight.toLocaleString()} / ${poTotalWeight.toLocaleString()} kg (${rawProgressPct}%). Không còn xe nào khác đăng ký! Tự động chốt Biên Bản Giao Thiếu (Shortage Receipt: thiếu ${Math.max(0, poTotalWeight - cumulativeWeight).toLocaleString()} kg) & cho phép các xe xuất cổng.`
-                          : `ℹ️ Đã giao ${rawProgressPct}% của Đơn PO [${poCode}] (${cumulativeWeight.toLocaleString()} / ${poTotalWeight.toLocaleString()} kg) qua ${completedTrucksCount}/${totalRegisteredTrucks} xe. Còn thiếu ${Math.max(0, poTotalWeight - cumulativeWeight).toLocaleString()} kg — Chờ xe tiếp theo.`}
+                            ? `🎉 Tất cả ${totalRegisteredTrucks} xe của Đơn PO [${poCode}] đã giao đủ ${rawProgressPct}% (${cumulativeWeight.toLocaleString()} / ${poTotalWeight.toLocaleString()} kg)! Quyết toán phiếu nhập kho GRN.`
+                            : isAllTrucksWeighedOut
+                              ? `⚠️ ĐÃ CÂN XONG TOÀN BỘ ${completedTrucksCount}/${totalRegisteredTrucks} XE CỦA ĐƠN PO [${poCode}]. Tổng thực nhận đạt ${cumulativeWeight.toLocaleString()} / ${poTotalWeight.toLocaleString()} kg (${rawProgressPct}%). Không còn xe nào khác đăng ký! Tự động chốt Biên Bản Giao Thiếu (Shortage Receipt: thiếu ${Math.max(0, poTotalWeight - cumulativeWeight).toLocaleString()} kg) & cho phép các xe xuất cổng.`
+                              : `ℹ️ Đã giao ${rawProgressPct}% của Đơn PO [${poCode}] (${cumulativeWeight.toLocaleString()} / ${poTotalWeight.toLocaleString()} kg) qua ${completedTrucksCount}/${totalRegisteredTrucks} xe. Còn thiếu ${Math.max(0, poTotalWeight - cumulativeWeight).toLocaleString()} kg — Chờ xe tiếp theo.`}
                       </span>
                     </div>
 
@@ -1530,30 +1585,27 @@ interface ApprovedOrder {
 
               {/* Automatic Calculation & Verification Box for THIS Truck */}
               {activeScaleOutEntry && (
-                <div className={`p-5 rounded-2xl border transition-all ${
-                  isStrictPass
+                <div className={`p-5 rounded-2xl border transition-all ${isStrictPass
                     ? 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
                     : isWarningPass
-                    ? 'bg-amber-50/90 border-amber-300 text-amber-950'
-                    : 'bg-rose-50 border-rose-300 text-rose-950 animate-pulse'
-                }`}>
+                      ? 'bg-amber-50/90 border-amber-300 text-amber-950'
+                      : 'bg-rose-50 border-rose-300 text-rose-950 animate-pulse'
+                  }`}>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2 font-bold text-base">
-                      <span className={`material-symbols-outlined text-2xl ${
-                        isStrictPass ? 'text-emerald-700' : isWarningPass ? 'text-amber-700' : 'text-rose-700'
-                      }`}>
+                      <span className={`material-symbols-outlined text-2xl ${isStrictPass ? 'text-emerald-700' : isWarningPass ? 'text-amber-700' : 'text-rose-700'
+                        }`}>
                         {isStrictPass ? 'fact_check' : isWarningPass ? 'report_problem' : 'warning'}
                       </span>
                       <span>KẾT QUẢ ĐỐI SOÁT TRẠM CÂN — XE [{activeScaleOutEntry.license_plate}]</span>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide ${
-                      isStrictPass ? 'bg-emerald-700 text-white' : isWarningPass ? 'bg-amber-600 text-white' : 'bg-rose-600 text-white'
-                    }`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-wide ${isStrictPass ? 'bg-emerald-700 text-white' : isWarningPass ? 'bg-amber-600 text-white' : 'bg-rose-600 text-white'
+                      }`}>
                       {isStrictPass
                         ? `🟢 XÁC NHẬN: CHUẨN KHỚP TRỌNG LƯỢNG (${netWeightCalc.toLocaleString()} KG)`
                         : isWarningPass
-                        ? `🟡 BÁO VÀNG: TRONG NGƯỠNG DUNG SAI MỞ RỘNG (${diffPctCalc.toFixed(2)}%)`
-                        : `🔴 RED - CẢNH BÁO BẤT THƯỜNG (> ${(toleranceThresholdPercent * 2).toFixed(1)}%)`}
+                          ? `🟡 BÁO VÀNG: TRONG NGƯỠNG DUNG SAI MỞ RỘNG (${diffPctCalc.toFixed(2)}%)`
+                          : `🔴 RED - CẢNH BÁO BẤT THƯỜNG (> ${(toleranceThresholdPercent * 2).toFixed(1)}%)`}
                     </span>
                   </div>
 
@@ -1572,32 +1624,28 @@ interface ApprovedOrder {
                     </div>
                     <div>
                       <div className="text-xs text-slate-500 font-medium">Tỷ Lệ Dung Sai (Cài Đặt: {toleranceThresholdPercent}%):</div>
-                      <div className={`font-data-mono font-extrabold text-lg ${
-                        isStrictPass ? 'text-emerald-700' : isWarningPass ? 'text-amber-700' : 'text-rose-700'
-                      }`}>
+                      <div className={`font-data-mono font-extrabold text-lg ${isStrictPass ? 'text-emerald-700' : isWarningPass ? 'text-amber-700' : 'text-rose-700'
+                        }`}>
                         {diffPctCalc.toFixed(2)}%
                       </div>
                     </div>
                   </div>
 
-                  <div className={`mt-3 text-xs p-2.5 rounded-xl border flex items-center justify-between ${
-                    isStrictPass ? 'bg-white/80 border-emerald-200 text-slate-700' : isWarningPass ? 'bg-amber-100/90 border-amber-300 text-amber-950 font-medium' : 'bg-rose-100/90 border-rose-300 text-rose-950 font-bold'
-                  }`}>
+                  <div className={`mt-3 text-xs p-2.5 rounded-xl border flex items-center justify-between ${isStrictPass ? 'bg-white/80 border-emerald-200 text-slate-700' : isWarningPass ? 'bg-amber-100/90 border-amber-300 text-amber-950 font-medium' : 'bg-rose-100/90 border-rose-300 text-rose-950 font-bold'
+                    }`}>
                     <span className="flex items-center gap-1.5 font-medium">
-                      <span className={`material-symbols-outlined text-[16px] ${
-                        isStrictPass ? 'text-emerald-600' : isWarningPass ? 'text-amber-600' : 'text-rose-600'
-                      }`}>
+                      <span className={`material-symbols-outlined text-[16px] ${isStrictPass ? 'text-emerald-600' : isWarningPass ? 'text-amber-600' : 'text-rose-600'
+                        }`}>
                         {isStrictPass ? 'info' : isWarningPass ? 'help_outline' : 'warning'}
                       </span>
                       {isStrictPass
                         ? `Trạm cân ghi nhận xe ${activeScaleOutEntry.license_plate} trút xuống kho ${netWeightCalc.toLocaleString()} kg (~${currentTruckCases} thùng). Khớp chuẩn trong dung sai mặc định (${toleranceThresholdPercent}%).`
                         : isWarningPass
-                        ? `ℹ️ NẰM TRONG VÙNG DUNG SAI MỞ RỘNG: Lệch ${weightDiffCalc.toLocaleString()} kg (${diffPctCalc.toFixed(2)}%). Cho phép Bảo vệ mở barrier nếu có ghi chú giải trình lý do (nhiên liệu / pallet bẩn).`
-                        : `🚨 CẢNH BÁO BẤT THƯỜNG: Xe ${activeScaleOutEntry.license_plate} trút ${netWeightCalc.toLocaleString()} kg, LỆCH ${weightDiffCalc.toLocaleString()} kg (${diffPctCalc.toFixed(2)}%) VƯỢT QUÁ DUNG SAI CHO PHÉP (${toleranceThresholdPercent}%) so với ${currentTruckCases} thùng (${expectedWeightCalc.toLocaleString()} kg)!`}
+                          ? `ℹ️ NẰM TRONG VÙNG DUNG SAI MỞ RỘNG: Lệch ${weightDiffCalc.toLocaleString()} kg (${diffPctCalc.toFixed(2)}%). Cho phép Bảo vệ mở barrier nếu có ghi chú giải trình lý do (nhiên liệu / pallet bẩn).`
+                          : `🚨 CẢNH BÁO BẤT THƯỜNG: Xe ${activeScaleOutEntry.license_plate} trút ${netWeightCalc.toLocaleString()} kg, LỆCH ${weightDiffCalc.toLocaleString()} kg (${diffPctCalc.toFixed(2)}%) VƯỢT QUÁ DUNG SAI CHO PHÉP (${toleranceThresholdPercent}%) so với ${currentTruckCases} thùng (${expectedWeightCalc.toLocaleString()} kg)!`}
                     </span>
-                    <span className={`font-bold px-2 py-0.5 rounded text-[11px] shrink-0 ${
-                      isStrictPass ? 'text-slate-900 bg-emerald-100' : isWarningPass ? 'text-amber-900 bg-amber-200' : 'text-rose-900 bg-rose-200'
-                    }`}>
+                    <span className={`font-bold px-2 py-0.5 rounded text-[11px] shrink-0 ${isStrictPass ? 'text-slate-900 bg-emerald-100' : isWarningPass ? 'text-amber-900 bg-amber-200' : 'text-rose-900 bg-rose-200'
+                      }`}>
                       {isStrictPass ? 'Bảo vệ kiểm tra trước khi mở barrier' : isWarningPass ? 'Cho phép xuất xe + Ghi chú giải trình' : '⛔ YÊU CẦU KIỂM TRA THÙNG XE KHÔNG CHO XUẤT CỔNG'}
                     </span>
                   </div>
@@ -1721,9 +1769,8 @@ interface ApprovedOrder {
                     <td className="p-3 font-data-mono font-bold text-slate-900">{e.license_plate}</td>
                     <td className="p-3">{e.driver_name}</td>
                     <td className="p-3 text-xs">
-                      <span className={`px-2 py-0.5 rounded font-semibold ${
-                        e.entry_type === 'QR_SCAN' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'
-                      }`}>
+                      <span className={`px-2 py-0.5 rounded font-semibold ${e.entry_type === 'QR_SCAN' ? 'bg-purple-100 text-purple-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
                         {e.entry_type === 'QR_SCAN' ? 'Quét QR' : 'Khai báo'}
                       </span>
                     </td>
@@ -1732,11 +1779,10 @@ interface ApprovedOrder {
                     <td className="p-3 font-data-mono font-bold text-amber-700">{e.net_weight ? `${e.net_weight.toLocaleString()} kg` : '-'}</td>
                     <td className="p-3 font-data-mono">{e.diff_percentage !== undefined ? `${e.diff_percentage}%` : '-'}</td>
                     <td className="p-3">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
-                        e.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' :
-                        e.status === 'WEIGHED_OUT' ? 'bg-blue-100 text-blue-800' :
-                        e.status === 'LOADING' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
-                      }`}>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${e.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' :
+                          e.status === 'WEIGHED_OUT' ? 'bg-blue-100 text-blue-800' :
+                            e.status === 'LOADING' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
                         {e.status}
                       </span>
                     </td>
