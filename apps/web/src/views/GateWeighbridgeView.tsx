@@ -182,6 +182,89 @@ export function GateWeighbridgeView({ actorId, warehouseId, userRole }: { actorI
       }
     }
   };
+  const [liveStreamResult, setLiveStreamResult] = useState<{ plate: string; latency: number; detected: boolean } | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleFileUploadScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setIsLoading(true);
+      const res = await fetch('http://localhost:8000/scan-license-plate', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (data.success && data.license_plate) {
+        setLicensePlate(data.license_plate);
+        setAlertMessage({
+          type: 'success',
+          text: `⚡ AI 2-Stage YOLO (Nano): Đã nhận diện biển số [${data.license_plate}] trong ${data.latency_ms} ms!`
+        });
+      } else {
+        setAlertMessage({ type: 'error', text: 'Không đọc được biển số từ ảnh file upload này' });
+      }
+    } catch (err) {
+      setAlertMessage({ type: 'error', text: 'Lỗi kết nối tới AI OCR Service (vui lòng chạy: python scripts/ocr_service.py)' });
+    } finally {
+      setIsLoading(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleScanLicensePlateFromCamera = async () => {
+    if (!videoRef.current || videoRef.current.videoWidth === 0) {
+      setAlertMessage({ type: 'error', text: 'Camera chưa sẵn sàng hoặc chưa khởi động webcam!' });
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = videoRef.current.videoWidth || 1280;
+    canvas.height = videoRef.current.videoHeight || 720;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const formData = new FormData();
+      formData.append('file', blob, 'frame.jpg');
+
+      try {
+        setIsLoading(true);
+        const res = await fetch('http://localhost:8000/scan-license-plate', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+
+        if (data.success && data.license_plate) {
+          setLicensePlate(data.license_plate);
+          setLiveStreamResult({
+            plate: data.license_plate,
+            latency: data.latency_ms,
+            detected: !!data.detected
+          });
+          setAlertMessage({
+            type: 'success',
+            text: `⚡ AI 2-Stage YOLO (Nano): Đã tự động đọc biển số [${data.license_plate}] trong ${data.latency_ms} ms!`
+          });
+        } else {
+          setAlertMessage({ type: 'error', text: 'Không đọc được biển số từ hình ảnh camera' });
+        }
+      } catch (err) {
+        setAlertMessage({ type: 'error', text: 'Không thể kết nối tới AI OCR Service (vui lòng chạy: python scripts/ocr_service.py)' });
+      } finally {
+        setIsLoading(false);
+      }
+    }, 'image/jpeg', 0.9);
+  };
 
 interface ApprovedOrder {
   id: string;
@@ -739,10 +822,55 @@ interface ApprovedOrder {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-                  <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-slate-700 shadow-md">
-                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"></video>
-                    <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[9px] font-extrabold px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
-                      <div className="w-1.5 h-1.5 rounded-full bg-white"></div> AN NINH TỰ ĐỘNG W1
+                  <div className="space-y-2">
+                    <div className="relative rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center border border-slate-700 shadow-md">
+                      <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"></video>
+                      <div className="absolute top-2 left-2 bg-red-600/90 text-white text-[9px] font-extrabold px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                        <div className="w-1.5 h-1.5 rounded-full bg-white"></div> AN NINH TỰ ĐỘNG W1
+                      </div>
+
+                      {/* Realtime Live HUD Overlay */}
+                      {liveStreamResult && (
+                        <div className="absolute bottom-2 left-2 right-2 bg-slate-950/90 backdrop-blur-md border border-emerald-500/80 p-2 rounded-lg flex items-center justify-between text-white shadow-xl">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></div>
+                            <span className="text-[10px] font-extrabold text-emerald-400 uppercase">AI 2-STAGE YOLO:</span>
+                          </div>
+                          <div className="text-lg font-black text-amber-400 font-data-mono tracking-widest bg-slate-900 px-2.5 py-0.5 rounded border border-amber-500/60">
+                            {liveStreamResult.plate || '---'}
+                          </div>
+                          <span className="text-[9px] text-slate-400 font-data-mono">{liveStreamResult.latency}ms</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={handleScanLicensePlateFromCamera}
+                        disabled={isLoading}
+                        className="bg-gradient-to-r from-amber-500 to-indigo-600 hover:from-amber-600 hover:to-indigo-700 text-white font-bold text-xs py-2 px-3 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-sm">center_focus_strong</span>
+                        📷 AI Scan Biển Số (2-Stage YOLO)
+                      </button>
+
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/*"
+                        onChange={handleFileUploadScan}
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isLoading}
+                        className="bg-slate-800 hover:bg-slate-700 text-indigo-300 font-bold text-xs py-2 px-3 rounded-xl border border-slate-600 shadow-md transition-all flex items-center justify-center gap-1.5 active:scale-95 disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-sm">upload_file</span>
+                        📁 Upload Ảnh Biển Số Test AI
+                      </button>
                     </div>
                   </div>
 
